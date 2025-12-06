@@ -1,0 +1,17 @@
+{
+  "name": "nest-seeder",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "build": "pnpm -C packages/nest-seeder build && pnpm -C apps/example-app build",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "publish:patch": "node scripts/publish.js patch",
+    "publish:minor": "node scripts/publish.js minor",
+    "publish:major": "node scripts/publish.js major"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.21.0"
+}

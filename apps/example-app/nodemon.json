@@ -1,0 +1,7 @@
+{
+  "watch": ["src/database"],
+  "ext": "ts",
+  "exec": "ts-node src/seed.ts",
+  "delay": "1000"
+}
+
