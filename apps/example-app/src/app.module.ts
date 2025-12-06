@@ -1,6 +1,5 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { SeederModule } from '@ackplus/nest-seeder';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { User } from './database/entities/user.entity';
@@ -18,9 +17,6 @@ import { PostSeeder } from './database/seeders/post.seeder';
       logging: false,
     }),
     TypeOrmModule.forFeature([User, Post]),
-    SeederModule.register({
-      seeders: [UserSeeder, PostSeeder],
-    }),
   ],
   controllers: [AppController],
   providers: [AppService],

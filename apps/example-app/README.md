@@ -1,6 +1,6 @@
 # Example App - @ackplus/nest-seeder
 
-Complete working example demonstrating nest-seeder with TypeORM and SQLite.
+Complete working example demonstrating nest-seeder with TypeORM and SQLite using the **CLI approach**.
 
 ## 🚀 Quick Start
 
@@ -26,8 +26,8 @@ pnpm seed
 # Drop and reseed
 pnpm seed:refresh
 
-# More data (50 users, 250 posts)
-pnpm seed -- --dummyData
+# Run specific seeder
+pnpm seed:users
 
 # Watch mode (auto-reseed on changes)
 pnpm seed:watch
@@ -48,22 +48,36 @@ example-app/
 │   │   ├── entities/       # TypeORM entities
 │   │   ├── factories/      # Data factories
 │   │   └── seeders/        # Seeders
-│   ├── app.module.ts       # Main module
-│   ├── seed.ts            # Seed script
+│   ├── app.module.ts       # Main module (no seeder imports!)
 │   └── main.ts            # App entry
+├── seeder.config.ts       # Seeder CLI configuration
 └── test/                  # Tests
 ```
 
 ## 🎯 Features Demonstrated
 
+- ✅ **CLI-based seeding** (no app.module.ts modifications)
 - ✅ TypeORM with SQLite
 - ✅ Entity relationships (One-to-Many)
 - ✅ Factory pattern with Faker.js
 - ✅ Batch insertion
-- ✅ Watch mode
+- ✅ Watch mode with auto-reload
 - ✅ 40+ tests with 90%+ coverage
 
 ## 📊 What's Included
+
+### Configuration
+
+**seeder.config.ts** - CLI configuration file:
+```typescript
+export default {
+  imports: [
+    TypeOrmModule.forRoot({ /* db config */ }),
+    TypeOrmModule.forFeature([User, Post]),
+  ],
+  seeders: [UserSeeder, PostSeeder],
+};
+```
 
 ### Entities
 - **User** - email, name, role, posts relationship
@@ -131,16 +145,37 @@ export class UserSeeder implements Seeder {
 
 ## 🛠️ Development
 
-### Watch Modes
+### Available Commands
 
 ```bash
-# Terminal 1: App
+# Seeding
+pnpm seed              # Run all seeders
+pnpm seed:refresh      # Drop and reseed all
+pnpm seed:users        # Run only UserSeeder
+pnpm seed:watch        # Auto-reseed on file changes
+
+# Development
+pnpm start:dev         # Start app in watch mode
+pnpm test:watch        # Run tests in watch mode
+
+# Testing
+pnpm test              # Run all tests
+pnpm test:cov          # Run with coverage
+pnpm test:e2e          # Run E2E tests
+```
+
+### Watch Modes
+
+Run multiple terminals for full development workflow:
+
+```bash
+# Terminal 1: Application server
 pnpm start:dev
 
-# Terminal 2: Tests
+# Terminal 2: Tests with auto-reload
 pnpm test:watch
 
-# Terminal 3: Seed
+# Terminal 3: Auto-reseed on changes
 pnpm seed:watch
 ```
 
@@ -149,8 +184,8 @@ pnpm seed:watch
 1. Create entity in `src/database/entities/`
 2. Create factory in `src/database/factories/`
 3. Create seeder in `src/database/seeders/`
-4. Update `app.module.ts`
-5. Run tests and seed
+4. **Update `seeder.config.ts`** (not app.module.ts!)
+5. Run `pnpm seed`
 
 ## 🐛 Troubleshooting
 

@@ -56,22 +56,43 @@ async function parseArguments(): Promise<CliArguments> {
 }
 
 function setupTsNode() {
+  // Check if we're already running under ts-node
+  if (require.extensions['.ts']) {
+    return; // TypeScript is already supported
+  }
+  
   try {
+    // Try to resolve ts-node from current working directory
+    const tsNodePath = require.resolve('ts-node', {
+      paths: [process.cwd(), __dirname]
+    });
+    
+    const tsNode = require(tsNodePath);
+    
     // Register ts-node for TypeScript support
-    require('ts-node').register({
+    tsNode.register({
       transpileOnly: true,
+      skipProject: true, // Ignore project's tsconfig.json
       compilerOptions: {
         module: 'commonjs',
+        moduleResolution: 'node',
         experimentalDecorators: true,
         emitDecoratorMetadata: true,
         esModuleInterop: true,
         allowSyntheticDefaultImports: true,
         skipLibCheck: true,
+        target: 'ES2020',
+        resolveJsonModule: true,
+        strict: false,
       }
     });
-  } catch (_error) {
-    console.error('Failed to setup TypeScript support. Make sure ts-node is installed:');
-    console.error('npm install -D ts-node typescript');
+  } catch (error) {
+    console.error('\n❌ TypeScript configuration files require ts-node to be installed.');
+    console.error('\nPlease install ts-node and typescript as dev dependencies:');
+    console.error('   npm install -D ts-node typescript');
+    console.error('   # or');
+    console.error('   pnpm add -D ts-node typescript');
+    console.error('\nAlternatively, you can use a JavaScript config file (.js extension).\n');
     process.exit(1);
   }
 }
@@ -94,8 +115,15 @@ async function loadSeederConfig(configPath: string) {
     // Clear require cache to ensure fresh import
     delete require.cache[resolvedPath];
 
-    // Import the configuration
-    const configModule = await import(resolvedPath);
+    // Use require for loading config (works with ts-node)
+    let configModule;
+    if (configPath.endsWith('.ts') || configPath.endsWith('.js')) {
+      configModule = require(resolvedPath);
+    } else {
+      // For other extensions, use dynamic import
+      configModule = await import(resolvedPath);
+    }
+    
     const config = configModule.default || configModule;
 
     if (!config) {
