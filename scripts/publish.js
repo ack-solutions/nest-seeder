@@ -122,14 +122,7 @@ function question(query) {
     console.log(`   Current version: ${currentVersion}`);
     console.log(`   New version:     ${newVersion}`);
     console.log(`   Tag:             v${newVersion}`);
-    console.log(`   Update type:     ${versionType.toUpperCase()}`);
-    console.log('\n🔄 Steps that will be performed:');
-    console.log('   1. Build the package');
-    console.log('   2. Update package.json version');
-    console.log('   3. Commit the version change');
-    console.log('   4. Create git tag');
-    console.log('   5. Push to remote (triggers CI/CD)');
-    console.log('   6. GitHub Action will publish to npm\n');
+    console.log(`   Update type:     ${versionType.toUpperCase()}\n`);
 
     const confirm = await question('❓ Continue with publish? (Y/n): ');
     
