@@ -115,31 +115,39 @@ export class UserSeeder implements Seeder {
 
 Create `seeder.config.ts` in your **project root**:
 
+> **Note:** The seeder configuration is independent and does not require importing your main `AppModule`.
+
 ```typescript
 // seeder.config.ts
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { User } from './src/entities/user.entity';
 import { UserSeeder } from './src/seeders/user.seeder';
+import * as dotenv from 'dotenv';
+
+dotenv.config();
 
 export default {
   imports: [
-    // Database configuration
-    TypeOrmModule.forRoot({
-      type: 'postgres',
-      host: 'localhost',
-      port: 5432,
-      username: 'postgres',
-      password: 'postgres',
-      database: 'mydb',
-      entities: [User],
-      synchronize: true,
+    ConfigModule.forRoot({
+      isGlobal: true,
     }),
-    
-    // Register repositories
+    TypeOrmModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        type: 'postgres',
+        host: config.get<string>('DB_HOST'),
+        port: config.get<number>('DB_PORT'),
+        username: config.get<string>('DB_USERNAME'),
+        password: config.get<string>('DB_PASSWORD'),
+        database: config.get<string>('DB_DATABASE'),
+        entities: [User],
+        synchronize: true,
+      }),
+    }),
     TypeOrmModule.forFeature([User]),
   ],
-  
-  // List seeders (run in order)
   seeders: [UserSeeder],
 };
 ```
@@ -151,7 +159,7 @@ Add script to `package.json`:
 ```json
 {
   "scripts": {
-    "seed": "nest-seed -c seeder.config.ts"
+    "seed": "node -r ts-node/register -r tsconfig-paths/register ./node_modules/@ackplus/nest-seeder/dist/cli.js -c ./seeder.config.ts"
   }
 }
 ```
@@ -166,20 +174,22 @@ npm run seed
 
 ## 🖥️ CLI Commands
 
+Since you are running the seeder via a package script, you can pass arguments using `--`.
+
 ### Basic Usage
 
 ```bash
 # Run all seeders
-nest-seed -c seeder.config.ts
+npm run seed
 
 # Drop and reseed
-nest-seed -c seeder.config.ts --refresh
+npm run seed -- --refresh
 
 # Run specific seeder
-nest-seed -c seeder.config.ts --name UserSeeder
+npm run seed -- --name UserSeeder
 
 # Run multiple seeders
-nest-seed -c seeder.config.ts --name UserSeeder ProductSeeder
+npm run seed -- --name UserSeeder ProductSeeder
 ```
 
 ### Available Options
@@ -194,13 +204,15 @@ nest-seed -c seeder.config.ts --name UserSeeder ProductSeeder
 
 ### Package.json Scripts
 
+You can also define specific scripts for convenience:
+
 ```json
 {
   "scripts": {
-    "seed": "nest-seed -c seeder.config.ts",
-    "seed:refresh": "nest-seed -c seeder.config.ts -r",
-    "seed:users": "nest-seed -c seeder.config.ts -n UserSeeder",
-    "seed:watch": "nodemon --watch src/seeders --ext ts --exec nest-seed -c seeder.config.ts"
+    "seed": "node -r ts-node/register -r tsconfig-paths/register ./node_modules/@ackplus/nest-seeder/dist/cli.js -c ./seeder.config.ts",
+    "seed:refresh": "npm run seed -- --refresh",
+    "seed:users": "npm run seed -- --name UserSeeder",
+    "seed:watch": "nodemon --watch src/seeders --ext ts --exec \"npm run seed\""
   }
 }
 ```

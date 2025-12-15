@@ -55,9 +55,9 @@ async function parseArguments(): Promise<CliArguments> {
   };
 }
 
-function setupTsNode() {
+function setupTsNode(force = false) {
   // Check if we're already running under ts-node
-  if (require.extensions['.ts']) {
+  if (!force && require.extensions['.ts']) {
     return; // TypeScript is already supported
   }
   
@@ -87,41 +87,80 @@ function setupTsNode() {
       }
     });
   } catch (error) {
-    console.error('\n❌ TypeScript configuration files require ts-node to be installed.');
-    console.error('\nPlease install ts-node and typescript as dev dependencies:');
-    console.error('   npm install -D ts-node typescript');
-    console.error('   # or');
-    console.error('   pnpm add -D ts-node typescript');
-    console.error('\nAlternatively, you can use a JavaScript config file (.js extension).\n');
-    process.exit(1);
+    if (!force) {
+      // Only fail if we weren't forcing (which means we expected it to work or fail silently)
+      // But actually, if we need it and it fails, we should error. 
+      // Existing logic was fine, we just add the force check above.
+      console.error('\n❌ TypeScript configuration files require ts-node to be installed.');
+      console.error('\nPlease install ts-node and typescript as dev dependencies:');
+      console.error('   npm install -D ts-node typescript');
+      console.error('   # or');
+      console.error('   pnpm add -D ts-node typescript');
+      console.error('\nAlternatively, you can use a JavaScript config file (.js extension).\n');
+      process.exit(1);
+    }
+    // If forcing and it fails, we might just let the caller handle the subsequent require failure
   }
 }
 
 async function loadSeederConfig(configPath: string) {
-  try {
-    // Resolve the config path relative to current working directory
-    const resolvedPath = path.resolve(process.cwd(), configPath);
+  // Resolve the config path relative to current working directory
+  const resolvedPath = path.resolve(process.cwd(), configPath);
 
-    // Check if file exists
-    if (!fs.existsSync(resolvedPath)) {
-      throw new Error(`Configuration file not found: ${resolvedPath}`);
-    }
+  // Check if file exists
+  if (!fs.existsSync(resolvedPath)) {
+    console.error(`Configuration file not found: ${resolvedPath}`);
+    process.exit(1);
+  }
 
-    // Setup TypeScript support if needed
-    if (configPath.endsWith('.ts')) {
-      setupTsNode();
-    }
+  // Setup TypeScript support if needed (lazy/soft check)
+  if (configPath.endsWith('.ts')) {
+    setupTsNode();
+  }
 
+  // Helper to attempt loading
+  const tryLoad = async (useImport = false) => {
     // Clear require cache to ensure fresh import
-    delete require.cache[resolvedPath];
+    if (!useImport) {
+        delete require.cache[resolvedPath];
+    }
 
-    // Use require for loading config (works with ts-node)
     let configModule;
-    if (configPath.endsWith('.ts') || configPath.endsWith('.js')) {
+    if (!useImport && (configPath.endsWith('.ts') || configPath.endsWith('.js'))) {
       configModule = require(resolvedPath);
     } else {
-      // For other extensions, use dynamic import
       configModule = await import(resolvedPath);
+    }
+    return configModule;
+  };
+
+  try {
+    let configModule;
+    try {
+      configModule = await tryLoad(false);
+    } catch (error) {
+      // If loading failed and it's a TS file, try forcing ts-node registration and retry
+      if (configPath.endsWith('.ts') && (
+          error.code === 'ERR_UNKNOWN_FILE_EXTENSION' || 
+          error.code === 'ERR_REQUIRE_ESM' || 
+          error.message.includes('Unknown file extension') ||
+          error.message.includes('must use import to load ES Module')
+      )) {
+        // Fallback to import()
+        // We also try to register ts-node just in case it helps (though for import it needs loader)
+        setupTsNode(true); 
+        try {
+            configModule = await tryLoad(true);
+        } catch (importError) {
+             if (importError.code === 'ERR_UNKNOWN_FILE_EXTENSION') {
+                 console.error('\n❌ To load ESM TypeScript files, you must use the ts-node loader.');
+                 console.error('Please run with: node --loader ts-node/esm ...\n');
+             }
+             throw importError;
+        }
+      } else {
+        throw error;
+      }
     }
     
     const config = configModule.default || configModule;

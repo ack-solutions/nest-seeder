@@ -55,7 +55,11 @@ export class UserFactory {
 ```typescript
 // src/seeders/user.seeder.ts
 import { Injectable } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { Seeder, DataFactory } from '@ackplus/nest-seeder';
+import { User } from '../entities/user.entity';
+import { UserFactory } from '../factories/user.factory';
 
 @Injectable()
 export class UserSeeder implements Seeder {
@@ -75,14 +79,36 @@ export class UserSeeder implements Seeder {
 
 **3. Create config file (`seeder.config.ts` in project root):**
 
+> **Note:** The seeder configuration is now independent and does not require importing your main `AppModule`.
+
 ```typescript
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { User } from './src/entities/user.entity';
 import { UserSeeder } from './src/seeders/user.seeder';
+import * as dotenv from 'dotenv';
+
+dotenv.config();
 
 export default {
   imports: [
-    TypeOrmModule.forRoot({ /* db config */ }),
+    ConfigModule.forRoot({
+      isGlobal: true,
+    }),
+    TypeOrmModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        type: 'postgres',
+        host: config.get<string>('DB_HOST'),
+        port: config.get<number>('DB_PORT'),
+        username: config.get<string>('DB_USERNAME'),
+        password: config.get<string>('DB_PASSWORD'),
+        database: config.get<string>('DB_DATABASE'),
+        entities: [User],
+        synchronize: true,
+      }),
+    }),
     TypeOrmModule.forFeature([User]),
   ],
   seeders: [UserSeeder],
@@ -91,13 +117,17 @@ export default {
 
 **4. Add script and run:**
 
+Update your `package.json` scripts:
+
 ```json
 {
   "scripts": {
-    "seed": "nest-seed -c seeder.config.ts"
+    "seed": "node -r ts-node/register -r tsconfig-paths/register ./node_modules/@ackplus/nest-seeder/dist/cli.js -c ./seeder.config.ts"
   }
 }
 ```
+
+Run the seeder:
 
 ```bash
 npm run seed
