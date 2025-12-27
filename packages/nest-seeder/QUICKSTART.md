@@ -84,23 +84,36 @@ export class UserSeeder implements Seeder {
 
 Create `seeder.config.ts` in your **project root**:
 
+> **Note:** The seeder configuration is independent and does not require importing your main `AppModule`.
+
 ```typescript
 // seeder.config.ts (in project root)
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { User } from './src/entities/user.entity';
 import { UserSeeder } from './src/seeders/user.seeder';
+import * as dotenv from 'dotenv';
+
+dotenv.config();
 
 export default {
   imports: [
-    TypeOrmModule.forRoot({
-      type: 'postgres',
-      host: 'localhost',
-      port: 5432,
-      username: 'postgres',
-      password: 'postgres',
-      database: 'mydb',
-      entities: [User],
-      synchronize: true,
+    ConfigModule.forRoot({
+      isGlobal: true,
+    }),
+    TypeOrmModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        type: 'postgres',
+        host: config.get<string>('DB_HOST'),
+        port: config.get<number>('DB_PORT'),
+        username: config.get<string>('DB_USERNAME'),
+        password: config.get<string>('DB_PASSWORD'),
+        database: config.get<string>('DB_DATABASE'),
+        entities: [User],
+        synchronize: true,
+      }),
     }),
     TypeOrmModule.forFeature([User]),
   ],
@@ -115,8 +128,8 @@ Add to `package.json`:
 ```json
 {
   "scripts": {
-    "seed": "nest-seed -c seeder.config.ts",
-    "seed:refresh": "nest-seed -c seeder.config.ts --refresh"
+    "seed": "node -r ts-node/register -r tsconfig-paths/register ./node_modules/@ackplus/nest-seeder/dist/cli.js -c ./seeder.config.ts",
+    "seed:refresh": "npm run seed -- --refresh"
   }
 }
 ```
@@ -178,7 +191,7 @@ Add to `package.json`:
 ```json
 {
   "scripts": {
-    "seed:watch": "nodemon --watch src/seeders --watch src/factories --ext ts --exec nest-seed -c seeder.config.ts"
+    "seed:watch": "nodemon --watch src/seeders --watch src/factories --ext ts --exec \"npm run seed\""
   }
 }
 ```
