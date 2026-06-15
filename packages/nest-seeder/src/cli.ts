@@ -33,7 +33,7 @@ function parseContext(raw?: string): Record<string, any> | undefined {
 }
 
 /** Loads the config and builds the Nest application context. */
-async function createContext(configOption?: string) {
+async function createContext(configOption?: string, projectOption?: string) {
     const configPath = resolveConfigPath(configOption);
 
     if (!configPath) {
@@ -46,12 +46,12 @@ async function createContext(configOption?: string) {
     }
 
     log.dim(`Using config: ${path.relative(process.cwd(), configPath)}`);
-    const config = await loadSeederConfig(configPath);
+    const config = await loadSeederConfig(configPath, { project: projectOption });
     return { config, configPath };
 }
 
 async function runCommand(argv: any): Promise<void> {
-    const { config } = await createContext(argv.config);
+    const { config } = await createContext(argv.config, argv.project);
 
     const options: SeederServiceOptions = {
         refresh: argv.refresh,
@@ -84,7 +84,7 @@ async function runCommand(argv: any): Promise<void> {
 }
 
 async function listCommand(argv: any): Promise<void> {
-    const { config } = await createContext(argv.config);
+    const { config } = await createContext(argv.config, argv.project);
     const seeders = config.seeders ?? [];
 
     if (seeders.length === 0) {
@@ -148,6 +148,11 @@ async function main(): Promise<void> {
                         type: 'string',
                         describe: 'Path to the seeder config file (auto-detected if omitted)',
                     })
+                    .option('project', {
+                        alias: 'p',
+                        type: 'string',
+                        describe: 'Path to a tsconfig.json for ts-node (defaults to strict mode)',
+                    })
                     .option('refresh', {
                         alias: 'r',
                         type: 'boolean',
@@ -204,11 +209,17 @@ async function main(): Promise<void> {
             'list',
             'List the seeders registered in the config',
             (y) =>
-                y.option('config', {
-                    alias: 'c',
-                    type: 'string',
-                    describe: 'Path to the seeder config file (auto-detected if omitted)',
-                }),
+                y
+                    .option('config', {
+                        alias: 'c',
+                        type: 'string',
+                        describe: 'Path to the seeder config file (auto-detected if omitted)',
+                    })
+                    .option('project', {
+                        alias: 'p',
+                        type: 'string',
+                        describe: 'Path to a tsconfig.json for ts-node',
+                    }),
             listCommand,
         )
         .example('$0', 'Run all seeders using the auto-detected config')

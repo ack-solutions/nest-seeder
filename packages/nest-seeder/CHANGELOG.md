@@ -5,6 +5,31 @@ All notable changes to `@ackplus/nest-seeder` are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] - 2026-06-15
+
+### Added
+
+- **`--project` / `-p`** CLI flag (and the `TS_NODE_PROJECT` environment variable) to point the
+  CLI's ts-node registration at your own `tsconfig.json`. Previously the CLI used
+  `skipProject: true`, so there was no clean way to control the compiler options used to load
+  `.ts` config files and entities.
+
+### Changed
+
+- The CLI's default ts-node registration now uses **`strict: true`** (was `strict: false`), matching
+  how application code is normally compiled. With `strictNullChecks` disabled, some TypeScript
+  versions emit `design:type = Object` for string-literal-union columns (e.g.
+  `visibility: 'committee' | 'all-members'` with no explicit `@Column` type), which makes TypeORM
+  throw `DataTypeNotSupportedError: Data type "Object" … is not supported` on Postgres/MySQL — even
+  though the same entities compile fine under the app's own `strict` build. Pass
+  `--project ./tsconfig.json` (or set `TS_NODE_PROJECT`) to override.
+
+### Notes
+
+- The version-independent fix is to give enum/union columns an explicit column type, e.g.
+  `@Column({ type: 'varchar' })`, so TypeORM never relies on reflect-metadata inference. Thanks to
+  the reporter for the detailed analysis.
+
 ## [2.0.0] - 2026-06-15
 
 A focused redesign that keeps the proven core (`@Factory`, `Seeder`, `DataFactory`) while
@@ -60,5 +85,6 @@ See the [Migration Guide](https://ack-solutions.github.io/nest-seeder/migration)
 - Last release of the v1 line. Iterative fixes and packaging tweaks across the `1.1.x` series
   (including the `1.1.15-beta.*` pre-releases).
 
+[2.1.0]: https://github.com/ack-solutions/nest-seeder/releases/tag/2.1.0
 [2.0.0]: https://github.com/ack-solutions/nest-seeder/releases/tag/2.0.0
 [1.1.16]: https://github.com/ack-solutions/nest-seeder/releases/tag/1.1.16

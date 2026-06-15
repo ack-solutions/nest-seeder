@@ -148,6 +148,46 @@ If you hit a foreign-key constraint violation during drop, it almost always mean
 Think of the list as insertion order. Drop runs that same list backwards, so the last thing inserted is the first thing removed.
 :::
 
+## `DataTypeNotSupportedError: Data type "Object" … is not supported`
+
+This comes from **TypeORM** (typically on Postgres or MySQL) when a column's type is inferred from
+reflect-metadata as `Object`. The usual cause is a **string-literal-union column with no explicit
+type**:
+
+```ts
+@Entity()
+export class Group {
+  // No `type:` — TypeORM relies on the emitted design:type metadata.
+  @Column()
+  visibility!: 'committee' | 'all-members';
+}
+```
+
+When TypeScript compiles this with `strictNullChecks` **off**, some versions emit
+`design:type = Object` instead of `String`, which TypeORM can't map to a column type — even though
+the same entity works under your app's own `strict` build.
+
+The CLI defaults to `strict: true` (matching app builds), but you have two robust options:
+
+::: tip Recommended: give the column an explicit type
+This is version-independent and works everywhere:
+
+```ts
+@Column({ type: 'varchar' })
+visibility!: 'committee' | 'all-members';
+```
+:::
+
+::: tip Or point ts-node at your own tsconfig
+Use the exact compiler options your app uses:
+
+```bash
+nest-seed --project ./tsconfig.json
+# or
+TS_NODE_PROJECT=./tsconfig.json nest-seed
+```
+:::
+
 ## Enable debug logging
 
 When an error message isn't enough, set `NEST_SEEDER_DEBUG=1` to print full stack traces:

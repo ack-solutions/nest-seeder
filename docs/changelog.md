@@ -4,6 +4,25 @@ All notable changes to `@ackplus/nest-seeder`. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2.1.0 — 2026-06-15
+
+### Added
+
+- **`--project` / `-p`** flag (and `TS_NODE_PROJECT` env var) to point the CLI's ts-node at your
+  own `tsconfig.json` when loading `.ts` config files and entities.
+
+### Changed
+
+- The CLI's ts-node default is now **`strict: true`** (was `strict: false`). With `strictNullChecks`
+  off, some TypeScript versions emit `design:type = Object` for string-literal-union columns, which
+  makes TypeORM throw `DataTypeNotSupportedError` on Postgres/MySQL. See
+  [Troubleshooting](/guide/troubleshooting). Override with `--project` / `TS_NODE_PROJECT`.
+
+### Notes
+
+- The version-independent fix is to give enum/union columns an explicit column type
+  (`@Column({ type: 'varchar' })`) so TypeORM never relies on reflect-metadata inference.
+
 ## 2.0.0 — 2026-06-15
 
 A focused redesign that keeps the proven core (`@Factory`, `Seeder`, `DataFactory`) while
