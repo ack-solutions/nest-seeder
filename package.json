@@ -1,6 +1,6 @@
 {
   "name": "nest-seeder-workspace",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Monorepo for @ackplus/nest-seeder — a database seeding library for NestJS.",
   "private": true,
   "license": "MIT",

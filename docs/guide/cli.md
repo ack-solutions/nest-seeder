@@ -29,6 +29,7 @@ Running `nest-seed` with no arguments executes all registered seeders in order. 
 | Flag | Alias | Argument | Description |
 | --- | --- | --- | --- |
 | `--config` | `-c` | `<path>` | Path to the config file. Optional — auto-detected if omitted. |
+| `--project` | `-p` | `<path>` | tsconfig.json for ts-node when loading `.ts` config. Also via `TS_NODE_PROJECT`. Defaults to strict mode. |
 | `--refresh` | `-r` | — | Drop all seeders (in reverse order) before reseeding. |
 | `--name` | `-n` | `<names...>` | Run only the named seeders. Matches class name or `@SeederName`, case-insensitive, `Seeder` suffix optional. |
 | `--dry-run` | — | — | Print what would run and write nothing. |
@@ -50,6 +51,20 @@ nest-seed -c ./apps/api/seeder.config.ts
 ```
 
 If you omit this flag, the CLI auto-discovers your config (see [Config auto-discovery](#config-auto-discovery)).
+
+### `--project`, `-p`
+
+When loading a `.ts` config, the CLI registers [ts-node](https://typestrong.org/ts-node/) with sensible defaults (including `strict: true`). Use `--project` to point it at your own `tsconfig.json` so the seed run compiles entities exactly like your app does.
+
+```bash
+nest-seed --project ./tsconfig.json
+# or via environment variable
+TS_NODE_PROJECT=./tsconfig.json nest-seed
+```
+
+::: tip When you need this
+If you see TypeORM's `DataTypeNotSupportedError: Data type "Object" …` for a string-literal-union column, your seed-time compiler options differ from your app's. Point `--project` at your app's tsconfig, or give the column an explicit type — see [Troubleshooting](/guide/troubleshooting).
+:::
 
 ### `--refresh`, `-r`
 

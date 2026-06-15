@@ -1,6 +1,6 @@
 {
   "name": "@ackplus/nest-seeder",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "A powerful and flexible database seeding library for NestJS applications with support for factories, data generation using Faker.js, and CLI commands",
   "author": "AckPlus",
   "license": "MIT",
