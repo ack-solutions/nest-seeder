@@ -1,273 +1,251 @@
 #!/usr/bin/env node
 
-import { SeederModule, SeederModuleExtraOptions } from './lib/seeder/seeder.module';
-import { SeederOptions, SeederRunner, SeederServiceOptions, } from './lib';
-import yargs from 'yargs';
-import { NestFactory } from '@nestjs/core';
-import { SeederService } from './lib/seeder/seeder.service';
-import * as path from 'path';
 import * as fs from 'fs';
+import * as path from 'path';
 
-interface CliArguments {
-  refresh: boolean;
-  name?: string[];
-  dummyData: boolean;
-  config: string;
-}
+import { NestFactory } from '@nestjs/core';
+import yargs from 'yargs';
+import { hideBin } from 'yargs/helpers';
 
-async function parseArguments(): Promise<CliArguments> {
-  const argv = await yargs(process.argv.slice(2))
-    .option('refresh', {
-      alias: 'r',
-      type: 'boolean',
-      description: 'Drop all data before seeding',
-      default: false
-    })
-    .option('name', {
-      alias: 'n',
-      type: 'array',
-      string: true,
-      description: 'Specific seeder names to run',
-    })
-    .option('dummyData', {
-      alias: 'd',
-      type: 'boolean',
-      description: 'Include dummy data',
-      default: false
-    })
-    .option('config', {
-      alias: 'c',
-      type: 'string',
-      description: 'Path to seeder configuration file',
-      demandOption: true
-    })
-    .help()
-    .example('nest-seed -c ./seeder.config.ts', 'Run all seeders')
-    .example('nest-seed -c ./seeder.config.ts --refresh', 'Drop and reseed all data')
-    .example('nest-seed -c ./seeder.config.ts --name UserSeeder', 'Run specific seeder')
-    .parseAsync();
+import { getSeederName } from './lib/decorators/seeder.decorator';
+import { loadSeederConfig, resolveConfigPath } from './lib/cli/load-config';
+import { OrmType, scaffoldFiles } from './lib/cli/templates';
+import { SeederModule } from './lib/seeder/seeder.module';
+import { SeederService } from './lib/seeder/seeder.service';
+import type { SeederServiceOptions } from './lib/seeder/seeder.interface';
 
-  return {
-    refresh: argv.refresh,
-    name: argv.name,
-    dummyData: argv.dummyData,
-    config: argv.config,
-  };
-}
+const log = {
+    info: (msg: string) => console.log(msg),
+    error: (msg: string) => console.error(`\x1b[31m${msg}\x1b[0m`),
+    success: (msg: string) => console.log(`\x1b[32m${msg}\x1b[0m`),
+    dim: (msg: string) => console.log(`\x1b[2m${msg}\x1b[0m`),
+};
 
-function setupTsNode(force = false) {
-  // Check if we're already running under ts-node
-  if (!force && require.extensions['.ts']) {
-    return; // TypeScript is already supported
-  }
-  
-  try {
-    // Try to resolve ts-node from current working directory
-    const tsNodePath = require.resolve('ts-node', {
-      paths: [process.cwd(), __dirname]
-    });
-    
-    const tsNode = require(tsNodePath);
-    
-    // Register ts-node for TypeScript support
-    tsNode.register({
-      transpileOnly: true,
-      skipProject: true, // Ignore project's tsconfig.json
-      compilerOptions: {
-        module: 'commonjs',
-        moduleResolution: 'node',
-        experimentalDecorators: true,
-        emitDecoratorMetadata: true,
-        esModuleInterop: true,
-        allowSyntheticDefaultImports: true,
-        skipLibCheck: true,
-        target: 'ES2020',
-        resolveJsonModule: true,
-        strict: false,
-      }
-    });
-  } catch (error) {
-    if (!force) {
-      // Only fail if we weren't forcing (which means we expected it to work or fail silently)
-      // But actually, if we need it and it fails, we should error. 
-      // Existing logic was fine, we just add the force check above.
-      console.error('\n❌ TypeScript configuration files require ts-node to be installed.');
-      console.error('\nPlease install ts-node and typescript as dev dependencies:');
-      console.error('   npm install -D ts-node typescript');
-      console.error('   # or');
-      console.error('   pnpm add -D ts-node typescript');
-      console.error('\nAlternatively, you can use a JavaScript config file (.js extension).\n');
-      process.exit(1);
+function parseContext(raw?: string): Record<string, any> | undefined {
+    if (!raw) {
+        return undefined;
     }
-    // If forcing and it fails, we might just let the caller handle the subsequent require failure
-  }
-}
-
-async function loadSeederConfig(configPath: string) {
-  // Resolve the config path relative to current working directory
-  const resolvedPath = path.resolve(process.cwd(), configPath);
-
-  // Check if file exists
-  if (!fs.existsSync(resolvedPath)) {
-    console.error(`Configuration file not found: ${resolvedPath}`);
-    process.exit(1);
-  }
-
-  // Setup TypeScript support if needed (lazy/soft check)
-  if (configPath.endsWith('.ts')) {
-    setupTsNode();
-  }
-
-  // Helper to attempt loading
-  const tryLoad = async (useImport = false) => {
-    // Clear require cache to ensure fresh import
-    if (!useImport) {
-        delete require.cache[resolvedPath];
-    }
-
-    let configModule;
-    if (!useImport && (configPath.endsWith('.ts') || configPath.endsWith('.js'))) {
-      configModule = require(resolvedPath);
-    } else {
-      configModule = await import(resolvedPath);
-    }
-    return configModule;
-  };
-
-  try {
-    let configModule;
     try {
-      configModule = await tryLoad(false);
-    } catch (error) {
-      // If loading failed and it's a TS file, try forcing ts-node registration and retry
-      if (configPath.endsWith('.ts') && (
-          error.code === 'ERR_UNKNOWN_FILE_EXTENSION' || 
-          error.code === 'ERR_REQUIRE_ESM' || 
-          error.message.includes('Unknown file extension') ||
-          error.message.includes('must use import to load ES Module')
-      )) {
-        // Fallback to import()
-        // We also try to register ts-node just in case it helps (though for import it needs loader)
-        setupTsNode(true); 
-        try {
-            configModule = await tryLoad(true);
-        } catch (importError) {
-             if (importError.code === 'ERR_UNKNOWN_FILE_EXTENSION') {
-                 console.error('\n❌ To load ESM TypeScript files, you must use the ts-node loader.');
-                 console.error('Please run with: node --loader ts-node/esm ...\n');
-             }
-             throw importError;
-        }
-      } else {
-        throw error;
-      }
+        return JSON.parse(raw);
+    } catch {
+        throw new Error(`--context must be valid JSON. Received: ${raw}`);
     }
-    
-    const config = configModule.default || configModule;
-
-    if (!config) {
-      throw new Error('Configuration file must export a default configuration object');
-    }
-
-    return config;
-  } catch (error) {
-    console.error('Error loading seeder configuration:');
-    console.error(error.message);
-    console.error('\nMake sure your configuration file:');
-    console.error('1. Exists at the specified path');
-    console.error('2. Exports a default configuration object');
-    console.error('3. Has proper TypeScript setup if using .ts files');
-    process.exit(1);
-  }
 }
 
-async function runSeeder() {
-  try {
-    const args = await parseArguments();
+/** Loads the config and builds the Nest application context. */
+async function createContext(configOption?: string) {
+    const configPath = resolveConfigPath(configOption);
 
-    console.log('🌱 Starting NestJS Seeder...');
-    console.log(`📁 Loading configuration from: ${args.config}`);
+    if (!configPath) {
+        throw new Error(
+            configOption
+                ? `Config file not found: ${configOption}`
+                : 'No seeder config found. Create a seeder.config.ts (try "nest-seed init") ' +
+                  'or pass one with --config.',
+        );
+    }
 
-    // Load the seeder configuration from specified path
-    const seederConfig = await loadSeederConfig(args.config);
+    log.dim(`Using config: ${path.relative(process.cwd(), configPath)}`);
+    const config = await loadSeederConfig(configPath);
+    return { config, configPath };
+}
 
-    const cliOptions: SeederServiceOptions = {
-      refresh: args.refresh,
-      name: args.name,
-      dummyData: args.dummyData,
+async function runCommand(argv: any): Promise<void> {
+    const { config } = await createContext(argv.config);
+
+    const options: SeederServiceOptions = {
+        refresh: argv.refresh,
+        name: argv.name,
+        dryRun: argv['dry-run'],
+        continueOnError: argv['continue-on-error'],
+        dummyData: argv['dummy-data'],
+        context: parseContext(argv.context),
     };
 
-    if (args.refresh) {
-      console.log('🔄 Refresh mode: Will drop existing data before seeding');
-    }
-
-    if (args.name && args.name.length > 0) {
-      console.log(`🎯 Running specific seeders: ${args.name.join(', ')}`);
-    }
-
-    if (args.dummyData) {
-      console.log('🎲 Dummy data mode enabled');
+    if (options.refresh) log.info('🔄 Refresh mode: dropping data before seeding');
+    if (options.dryRun) log.info('🔎 Dry run: no data will be written');
+    if (options.name) {
+        const names = Array.isArray(options.name) ? options.name : [options.name];
+        log.info(`🎯 Seeders: ${names.join(', ')}`);
     }
 
     const app = await NestFactory.createApplicationContext(
-      SeederModule.register({
-        ...seederConfig,
-        ...cliOptions,
-      }),
+        SeederModule.register({ ...config, ...options }),
+        { logger: ['error', 'warn', 'log'] },
     );
 
-    const seedersService = app.get(SeederService);
-    await seedersService.run();
-
-    await app.close();
-    console.log('✅ Seeding completed successfully!');
-    process.exit(0);
-  } catch (error) {
-    console.error('❌ Error running seeder:');
-    console.error(error.message);
-    if (error.stack && process.env.NODE_ENV === 'development') {
-      console.error('\nStack trace:');
-      console.error(error.stack);
+    try {
+        await app.get(SeederService).run();
+    } finally {
+        await app.close();
     }
-    process.exit(1);
-  }
+
+    log.success('✅ Seeding completed successfully!');
 }
 
-export const seeder = (options: SeederOptions): SeederRunner => {
-  return {
-    async run(extraOptions: SeederModuleExtraOptions): Promise<void> {
-      const cliOptions: SeederServiceOptions = {};
-      const argv: any = yargs(process.argv).argv;
-      if (argv.r || argv.refresh) {
-        cliOptions.refresh = true;
-      }
+async function listCommand(argv: any): Promise<void> {
+    const { config } = await createContext(argv.config);
+    const seeders = config.seeders ?? [];
 
-      if (argv.n || argv.name) {
-        cliOptions.name = argv.n || argv.name;
-      }
+    if (seeders.length === 0) {
+        log.info('No seeders registered in the config.');
+        return;
+    }
 
-      if (argv.d || argv.dummyData) {
-        cliOptions.dummyData = argv.d || argv.dummyData;
-      }
+    log.info(`Registered seeders (${seeders.length}):`);
+    seeders.forEach((seeder: any, index: number) => {
+        const className = seeder?.name ?? 'Unknown';
+        const stableName = getSeederName(seeder);
+        const alias = stableName !== className ? `  (--name ${stableName})` : '';
+        log.info(`  ${index + 1}. ${className}${alias}`);
+    });
+}
 
-      extraOptions = Object.assign(extraOptions, cliOptions);
+function initCommand(argv: any): void {
+    const orm = argv.orm as OrmType;
+    const force = Boolean(argv.force);
+    const files = scaffoldFiles(orm);
 
-      const app = await NestFactory.createApplicationContext(
-        SeederModule.register({
-          ...options,
-          ...extraOptions,
-        }),
-      );
+    let created = 0;
+    let skipped = 0;
 
-      const seedersService = app.get(SeederService);
-      await seedersService.run();
+    for (const file of files) {
+        const absolute = path.resolve(process.cwd(), file.path);
+        if (fs.existsSync(absolute) && !force) {
+            log.dim(`• skipped (exists): ${file.path}`);
+            skipped++;
+            continue;
+        }
+        fs.mkdirSync(path.dirname(absolute), { recursive: true });
+        fs.writeFileSync(absolute, file.contents);
+        log.success(`• created: ${file.path}`);
+        created++;
+    }
 
-      await app.close();
-    },
-  };
-};
+    log.info(`\nScaffolded ${created} file(s)${skipped ? `, skipped ${skipped}` : ''}.`);
+    log.info('\nNext steps:');
+    log.info('  1. Adjust seeder.config.ts for your database and entities.');
+    log.info('  2. Add a script to package.json:');
+    log.dim('       "seed": "nest-seed"');
+    log.info('  3. Run it:');
+    log.dim('       npm run seed');
+    if (skipped && !force) {
+        log.dim('\nUse --force to overwrite existing files.');
+    }
+}
 
-// Only run if this file is executed directly
+async function main(): Promise<void> {
+    await yargs(hideBin(process.argv))
+        .scriptName('nest-seed')
+        .usage('$0 [command] [options]')
+        .command(
+            ['$0', 'run'],
+            'Run seeders (default command)',
+            (y) =>
+                y
+                    .option('config', {
+                        alias: 'c',
+                        type: 'string',
+                        describe: 'Path to the seeder config file (auto-detected if omitted)',
+                    })
+                    .option('refresh', {
+                        alias: 'r',
+                        type: 'boolean',
+                        default: false,
+                        describe: 'Drop data before seeding',
+                    })
+                    .option('name', {
+                        alias: 'n',
+                        type: 'array',
+                        string: true,
+                        describe: 'Run only the named seeder(s)',
+                    })
+                    .option('dry-run', {
+                        type: 'boolean',
+                        default: false,
+                        describe: 'Show which seeders would run without executing them',
+                    })
+                    .option('continue-on-error', {
+                        type: 'boolean',
+                        default: false,
+                        describe: 'Keep going when a seeder fails',
+                    })
+                    .option('context', {
+                        type: 'string',
+                        describe: 'JSON forwarded to every seeder via options.context',
+                    })
+                    .option('dummy-data', {
+                        alias: 'd',
+                        type: 'boolean',
+                        default: false,
+                        describe: '[deprecated] forwarded as options.dummyData',
+                    }),
+            runCommand,
+        )
+        .command(
+            'init',
+            'Scaffold a seeder config, factory and seeder',
+            (y) =>
+                y
+                    .option('orm', {
+                        type: 'string',
+                        choices: ['typeorm', 'mongoose'] as const,
+                        default: 'typeorm',
+                        describe: 'Which ORM template to scaffold',
+                    })
+                    .option('force', {
+                        type: 'boolean',
+                        default: false,
+                        describe: 'Overwrite existing files',
+                    }),
+            (argv) => initCommand(argv),
+        )
+        .command(
+            'list',
+            'List the seeders registered in the config',
+            (y) =>
+                y.option('config', {
+                    alias: 'c',
+                    type: 'string',
+                    describe: 'Path to the seeder config file (auto-detected if omitted)',
+                }),
+            listCommand,
+        )
+        .example('$0', 'Run all seeders using the auto-detected config')
+        .example('$0 --refresh', 'Drop and reseed all data')
+        .example('$0 --name users posts', 'Run only the "users" and "posts" seeders')
+        .example('$0 init', 'Scaffold starter files')
+        .example('$0 list', 'List available seeders')
+        .strict()
+        .alias('h', 'help')
+        .alias('v', 'version')
+        .fail((msg, err) => {
+            // Re-throw real errors so the catch in `bootstrap` handles them.
+            if (err) throw err;
+            log.error(`\n${msg}`);
+            console.error('\nRun "nest-seed --help" for usage.');
+            process.exit(1);
+        })
+        .parseAsync();
+}
+
+async function bootstrap(): Promise<void> {
+    log.info('🌱 nest-seeder');
+    try {
+        await main();
+        process.exit(0);
+    } catch (error: any) {
+        log.error(`\n❌ ${error?.message ?? error}`);
+        if (error?.stack && process.env.NEST_SEEDER_DEBUG) {
+            console.error(error.stack);
+        } else {
+            log.dim('Set NEST_SEEDER_DEBUG=1 for a full stack trace.');
+        }
+        process.exit(1);
+    }
+}
+
+// Only run when invoked directly (not when imported).
 if (require.main === module) {
-  runSeeder();
+    bootstrap();
 }

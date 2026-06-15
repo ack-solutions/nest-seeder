@@ -5,9 +5,7 @@ import {
     ForwardReference,
 } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
-import yargs from 'yargs';
 
-import { SeederServiceOptions } from './seeder.interface';
 import {
     SeederModule,
     SeederModuleExtraOptions,
@@ -24,39 +22,33 @@ export interface SeederOptions {
 }
 
 export interface SeederRunner {
-    run(extraOptions: SeederModuleExtraOptions): Promise<void>;
+    run(extraOptions?: SeederModuleExtraOptions): Promise<void>;
 }
 
-async function bootstrap(options: SeederModuleOptions) {
+async function bootstrap(options: SeederModuleOptions): Promise<void> {
     const app = await NestFactory.createApplicationContext(
         SeederModule.register(options),
+        { logger: ['error', 'warn', 'log'] },
     );
 
-    const seedersService = app.get(SeederService);
-    await seedersService.run();
-
-    await app.close();
+    try {
+        const seedersService = app.get(SeederService);
+        await seedersService.run();
+    } finally {
+        await app.close();
+    }
 }
 
+/**
+ * Programmatic entry point. Prefer the `nest-seed` CLI for most workflows; use
+ * this when you need to seed from your own script.
+ *
+ * @example
+ * await seeder({ imports: [AppModule] }).run({ seeders: [UserSeeder], refresh: true });
+ */
 export const seeder = (options: SeederOptions): SeederRunner => {
     return {
-        run(extraOptions: SeederModuleExtraOptions): Promise<void> {
-            const cliOptions: SeederServiceOptions = {};
-            const argv:any = yargs(process.argv).argv;
-            if (argv.r || argv.refresh) {
-                cliOptions.refresh = true;
-            }
-
-            if (argv.n || argv.name) {
-                cliOptions.name = argv.n || argv.name;
-            }
-
-            if (argv.d || argv.dummyData) {
-                cliOptions.dummyData = argv.d || argv.dummyData;
-            }
-
-            extraOptions = Object.assign(extraOptions, cliOptions);
-
+        run(extraOptions: SeederModuleExtraOptions = {}): Promise<void> {
             return bootstrap({
                 ...options,
                 ...extraOptions,

@@ -2,10 +2,10 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { User } from '../database/entities/user.entity';
-import { Post } from '../database/entities/post.entity';
-import { UserSeeder } from '../database/seeders/user.seeder';
-import { PostSeeder } from '../database/seeders/post.seeder';
+import { User } from '../entities/user.entity';
+import { Post } from '../entities/post.entity';
+import { UserSeeder } from './user.seeder';
+import { PostSeeder } from './post.seeder';
 import { SeederServiceOptions } from '@ackplus/nest-seeder';
 
 describe('Seeders Integration Tests', () => {
@@ -42,8 +42,8 @@ describe('Seeders Integration Tests', () => {
 
   beforeEach(async () => {
     // Clean up before each test
-    await postRepository.delete({});
-    await userRepository.delete({});
+    await postRepository.createQueryBuilder().delete().execute();
+    await userRepository.createQueryBuilder().delete().execute();
   });
 
   describe('UserSeeder', () => {
@@ -177,7 +177,7 @@ describe('Seeders Integration Tests', () => {
 
     it('should warn if no users exist', async () => {
       // Drop all users
-      await userRepository.delete({});
+      await userRepository.createQueryBuilder().delete().execute();
       
       const consoleSpy = jest.spyOn(console, 'warn').mockImplementation();
       

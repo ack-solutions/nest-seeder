@@ -1,12 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Seeder, SeederServiceOptions, DataFactory } from '@ackplus/nest-seeder';
+import { Seeder, SeederName, SeederServiceOptions, DataFactory } from '@ackplus/nest-seeder';
 import { Post } from '../entities/post.entity';
 import { User } from '../entities/user.entity';
 import { PostFactory } from '../factories/post.factory';
 
 @Injectable()
+@SeederName('posts')
 export class PostSeeder implements Seeder {
   constructor(
     @InjectRepository(Post)
@@ -60,7 +61,7 @@ export class PostSeeder implements Seeder {
       return;
     }
     
-    await this.postRepository.delete({});
+    await this.postRepository.createQueryBuilder().delete().execute();
     console.log(`✅ Dropped ${count} posts`);
   }
 }

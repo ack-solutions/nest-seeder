@@ -1,280 +1,131 @@
-# @ackplus/nest-seeder
+# nest-seeder
 
 <p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
+  <a href="https://nestjs.com/" target="_blank"><img src="https://nestjs.com/img/logo-small.svg" width="110" alt="Nest Logo" /></a>
 </p>
 
-<p align="center">A powerful and flexible database seeding library for NestJS applications</p>
+<p align="center">A powerful, CLI-first database seeding library for NestJS — factories, Faker.js, and a great DX.</p>
 
 <p align="center">
   <a href="https://www.npmjs.com/package/@ackplus/nest-seeder"><img src="https://img.shields.io/npm/v/@ackplus/nest-seeder.svg" alt="NPM Version" /></a>
-  <a href="https://www.npmjs.com/package/@ackplus/nest-seeder"><img src="https://img.shields.io/npm/l/@ackplus/nest-seeder.svg" alt="Package License" /></a>
-  <a href="https://www.npmjs.com/package/@ackplus/nest-seeder"><img src="https://img.shields.io/npm/dm/@ackplus/nest-seeder.svg" alt="NPM Downloads" /></a>
+  <a href="https://www.npmjs.com/package/@ackplus/nest-seeder"><img src="https://img.shields.io/npm/l/@ackplus/nest-seeder.svg" alt="License" /></a>
+  <a href="https://www.npmjs.com/package/@ackplus/nest-seeder"><img src="https://img.shields.io/npm/dm/@ackplus/nest-seeder.svg" alt="Downloads" /></a>
 </p>
 
-## 📦 About
+<p align="center">
+  <b><a href="https://ack-solutions.github.io/nest-seeder/">📚 Documentation</a></b> ·
+  <a href="https://ack-solutions.github.io/nest-seeder/guide/getting-started">Getting Started</a> ·
+  <a href="https://ack-solutions.github.io/nest-seeder/guide/cli">CLI</a> ·
+  <a href="https://ack-solutions.github.io/nest-seeder/api/">API</a> ·
+  <a href="https://ack-solutions.github.io/nest-seeder/migration">Migration v1→v2</a> ·
+  <a href="https://www.npmjs.com/package/@ackplus/nest-seeder">npm</a>
+</p>
 
-`@ackplus/nest-seeder` is a CLI-based database seeding solution for NestJS applications. Generate and seed realistic test data with ease using factories, Faker.js, and a simple command-line interface.
+---
 
-### Key Features
-
-- 🖥️ **CLI-First** - Simple commands, no app code changes needed
-- 🏭 **Factory Pattern** - Generate realistic data with Faker.js decorators
-- 🔄 **Multiple ORMs** - Works with TypeORM, Mongoose, and Prisma
-- 🎯 **Selective Seeding** - Run specific seeders or all at once
-- 🔥 **Refresh Mode** - Drop and reseed with one command
-- 📦 **Batch Operations** - Efficient bulk data insertion
-- ✅ **Type-Safe** - Full TypeScript support
-
-## 📦 Installation
-
-```bash
-npm install @ackplus/nest-seeder @faker-js/faker
-npm install -D ts-node typescript
-```
-
-## 🚀 Quick Example
-
-**1. Create a factory:**
-
-```typescript
-// src/factories/user.factory.ts
-import { Factory } from '@ackplus/nest-seeder';
-
-export class UserFactory {
-  @Factory((faker) => faker.person.fullName())
-  name: string;
-
-  @Factory((faker) => faker.internet.email())
-  email: string;
-}
-```
-
-**2. Create a seeder:**
-
-```typescript
-// src/seeders/user.seeder.ts
-import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Seeder, DataFactory } from '@ackplus/nest-seeder';
-import { User } from '../entities/user.entity';
-import { UserFactory } from '../factories/user.factory';
-
-@Injectable()
-export class UserSeeder implements Seeder {
-  constructor(@InjectRepository(User) private repo: Repository<User>) {}
-
-  async seed(): Promise<void> {
-    const factory = DataFactory.createForClass(UserFactory);
-    const users = factory.generate(10);
-    await this.repo.save(users);
-  }
-
-  async drop(): Promise<void> {
-    await this.repo.delete({});
-  }
-}
-```
-
-**3. Create config file (`seeder.config.ts` in project root):**
-
-> **Note:** The seeder configuration is now independent and does not require importing your main `AppModule`.
-
-```typescript
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { ConfigModule, ConfigService } from '@nestjs/config';
-import { User } from './src/entities/user.entity';
-import { UserSeeder } from './src/seeders/user.seeder';
-import * as dotenv from 'dotenv';
-
-dotenv.config();
-
-export default {
-  imports: [
-    ConfigModule.forRoot({
-      isGlobal: true,
-    }),
-    TypeOrmModule.forRootAsync({
-      imports: [ConfigModule],
-      inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
-        type: 'postgres',
-        host: config.get<string>('DB_HOST'),
-        port: config.get<number>('DB_PORT'),
-        username: config.get<string>('DB_USERNAME'),
-        password: config.get<string>('DB_PASSWORD'),
-        database: config.get<string>('DB_DATABASE'),
-        entities: [User],
-        synchronize: true,
-      }),
-    }),
-    TypeOrmModule.forFeature([User]),
-  ],
-  seeders: [UserSeeder],
-};
-```
-
-**4. Add script and run:**
-
-Update your `package.json` scripts:
-
-```json
-{
-  "scripts": {
-    "seed": "node -r ts-node/register -r tsconfig-paths/register ./node_modules/@ackplus/nest-seeder/dist/cli.js -c ./seeder.config.ts"
-  }
-}
-```
-
-Run the seeder:
-
-```bash
-npm run seed
-```
-
-**Done! 🎉**
+This is the monorepo for **[`@ackplus/nest-seeder`](https://www.npmjs.com/package/@ackplus/nest-seeder)**.
+For usage, head to the **[documentation site](https://ack-solutions.github.io/nest-seeder/)**. This README
+covers the repository itself and local development.
 
 ## 📚 Documentation
 
-### Package Documentation
+The full, searchable docs live at **[ack-solutions.github.io/nest-seeder](https://ack-solutions.github.io/nest-seeder/)**:
 
-- **[📖 Complete Documentation](./packages/nest-seeder/README.md)** - Full guide with all features and examples
-- **[⚡ Quick Start (5 min)](./packages/nest-seeder/QUICKSTART.md)** - Get up and running fast
-- **[🤝 Contributing Guide](./packages/nest-seeder/CONTRIBUTING.md)** - Help improve the project
-- **[📁 Examples](./packages/nest-seeder/examples/)** - Template files you can copy
+- [Getting Started](https://ack-solutions.github.io/nest-seeder/guide/getting-started) — 5-minute quickstart
+- [Factories](https://ack-solutions.github.io/nest-seeder/guide/factories) · [Seeders](https://ack-solutions.github.io/nest-seeder/guide/seeders) · [Configuration](https://ack-solutions.github.io/nest-seeder/guide/configuration)
+- [CLI Reference](https://ack-solutions.github.io/nest-seeder/guide/cli)
+- [TypeORM](https://ack-solutions.github.io/nest-seeder/guide/orms/typeorm) · [Mongoose](https://ack-solutions.github.io/nest-seeder/guide/orms/mongoose) · [Prisma](https://ack-solutions.github.io/nest-seeder/guide/orms/prisma)
+- [API Reference](https://ack-solutions.github.io/nest-seeder/api/)
+- [Migration Guide (v1 → v2)](https://ack-solutions.github.io/nest-seeder/migration) · [Changelog](https://ack-solutions.github.io/nest-seeder/changelog)
 
-### Example Application
-
-See a complete working example:
-- **[Example App](./apps/example-app/)** - TypeORM + SQLite with tests
-- Run: `cd apps/example-app && pnpm seed`
-
-## 🛠️ Local Development
-
-This section is for contributors working on the package itself.
-
-### Setup
+## ✨ What it does
 
 ```bash
-# Clone repository
-git clone https://github.com/ackplus/nest-seeder.git
-cd nest-seeder
-
-# Install dependencies
-pnpm install
-
-# Build package
-pnpm -C packages/nest-seeder build
-
-# Run tests
-pnpm -C apps/example-app test
+npm install @ackplus/nest-seeder @faker-js/faker
+npx nest-seed init      # scaffold a config, factory, and seeder
+npm run seed            # seed your database
 ```
 
-### Project Structure
+- 🖥️ **CLI-first** — `nest-seed` runs your seeders with zero app-code changes.
+- 🏭 **Factories + Faker.js** — `@Factory` decorators with dependent fields, inheritance, and overrides.
+- 🔄 **Any ORM** — TypeORM, Mongoose, Prisma, or anything Nest can inject.
+- 🎯 **Selective & safe** — `--name`, `--refresh` (foreign-key-safe), `--dry-run`.
+- 📦 **Dual ESM + CJS** with full TypeScript types.
+
+## 🗂️ Repository structure
 
 ```
 nest-seeder/
 ├── packages/
-│   └── nest-seeder/          # 📦 Main package
-│       ├── src/              # Source code
-│       ├── dist/             # Compiled output
-│       ├── examples/         # Example templates
-│       └── README.md         # Package documentation
+│   └── nest-seeder/      # 📦 the published library (@ackplus/nest-seeder)
+│       ├── src/          # source + unit tests
+│       └── dist/         # build output (tsup, ESM + CJS)
 ├── apps/
-│   └── example-app/          # 🧪 Example application
-│       ├── src/              # Working example
-│       └── seeder.config.ts  # CLI configuration
-├── scripts/
-│   └── publish.js            # Publishing script
-└── package.json              # Root workspace
+│   └── example-app/      # 🧪 runnable TypeORM + SQLite example with tests
+├── docs/                 # 📚 VitePress documentation site
+├── scripts/              # release helpers
+└── .github/workflows/    # CI: npm publish + docs deploy
 ```
 
-### Development Workflow
+## 🛠️ Local development
+
+> Requires Node 18+ and pnpm 10.
 
 ```bash
-# Build package
-pnpm -C packages/nest-seeder build
+git clone https://github.com/ack-solutions/nest-seeder.git
+cd nest-seeder
+pnpm install
 
-# Run example app
-cd apps/example-app
-pnpm seed                # Seed database
-pnpm seed:refresh        # Drop and reseed
-pnpm seed:watch          # Watch mode
-pnpm test                # Run tests
-pnpm start:dev           # Start app
+# Build the library (tsup → dual ESM + CJS)
+pnpm build:packages
 
-# Make changes and test
-pnpm -C packages/nest-seeder build
-pnpm -C apps/example-app test
-```
-
-### Watch Mode (Multi-Terminal)
-
-For active development, run these in separate terminals:
-
-```bash
-# Terminal 1: Build watch
-pnpm -C packages/nest-seeder build --watch
-
-# Terminal 2: Test watch
-pnpm -C apps/example-app test:watch
-
-# Terminal 3: Seed watch
-pnpm -C apps/example-app seed:watch
-```
-
-### Publishing
-
-```bash
-# Interactive version bump and publish
-npm run publish
-
-# The script will:
-# 1. Ask for version type (patch/minor/major)
-# 2. Build package
-# 3. Update version
-# 4. Publish to npm
-```
-
-## 🧪 Testing
-
-```bash
-# Package tests
+# Type-check & unit-test the library
+pnpm typecheck
 pnpm -C packages/nest-seeder test
 
-# Example app tests
+# Run the example app end-to-end
 pnpm -C apps/example-app test
-pnpm -C apps/example-app test:cov
+cd apps/example-app && pnpm seed:refresh
+```
 
-# E2E tests
-pnpm -C apps/example-app test:e2e
+Useful root scripts: `pnpm build`, `pnpm test`, `pnpm typecheck`, `pnpm lint`.
+
+### Documentation site
+
+The docs are a standalone VitePress project (not part of the pnpm workspace):
+
+```bash
+cd docs
+pnpm install --ignore-workspace
+pnpm dev       # local dev server
+pnpm build     # production build
+```
+
+## 🚀 Releasing
+
+Releases are tag-driven — pushing a tag like `2.0.0` (or `2.1.0-beta.1`) triggers the
+[publish workflow](.github/workflows/publish.yml), which bumps versions, builds, and publishes to npm
+with provenance. The docs site redeploys automatically on changes to `docs/` via the
+[docs workflow](.github/workflows/docs.yml). A local helper is also available:
+
+```bash
+pnpm release   # interactive version bump + publish (scripts/publish.js)
 ```
 
 ## 🤝 Contributing
 
-Contributions are welcome! See [Contributing Guide](./packages/nest-seeder/CONTRIBUTING.md).
-
-**Quick steps:**
-1. Fork the repo
-2. Create a branch (`git checkout -b feature/amazing-feature`)
-3. Make your changes
-4. Build and test (`pnpm -C packages/nest-seeder build && pnpm -C apps/example-app test`)
-5. Commit changes (`git commit -m 'Add amazing feature'`)
-6. Push to branch (`git push origin feature/amazing-feature`)
-7. Open a Pull Request
+Contributions are welcome — see the **[Contributing Guide](./CONTRIBUTING.md)**.
 
 ## 📄 License
 
-MIT License - see [LICENSE](./packages/nest-seeder/LICENSE)
+[MIT](./packages/nest-seeder/LICENSE) © AckPlus
 
 ## 🔗 Links
 
-- **[NPM Package](https://www.npmjs.com/package/@ackplus/nest-seeder)**
-- **[GitHub Repository](https://github.com/ackplus/nest-seeder)**
-- **[Full Documentation](./packages/nest-seeder/README.md)**
-- **[Quick Start Guide](./packages/nest-seeder/QUICKSTART.md)**
-- **[Issue Tracker](https://github.com/ackplus/nest-seeder/issues)**
+- [📚 Documentation](https://ack-solutions.github.io/nest-seeder/)
+- [📦 npm package](https://www.npmjs.com/package/@ackplus/nest-seeder)
+- [🐙 GitHub](https://github.com/ack-solutions/nest-seeder)
+- [🐛 Issues](https://github.com/ack-solutions/nest-seeder/issues)
 
 ---
 

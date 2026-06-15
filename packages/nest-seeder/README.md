@@ -1,69 +1,76 @@
 # @ackplus/nest-seeder
 
-A powerful and flexible database seeding library for NestJS applications with support for factories, data generation using Faker.js, and CLI commands.
+<p align="center">
+  <a href="https://nestjs.com/" target="_blank"><img src="https://nestjs.com/img/logo-small.svg" width="110" alt="Nest Logo" /></a>
+</p>
+
+<p align="center">A powerful, CLI-first database seeding library for NestJS — factories, Faker.js, and a great DX.</p>
+
+<p align="center">
+  <a href="https://www.npmjs.com/package/@ackplus/nest-seeder"><img src="https://img.shields.io/npm/v/@ackplus/nest-seeder.svg" alt="NPM Version" /></a>
+  <a href="https://www.npmjs.com/package/@ackplus/nest-seeder"><img src="https://img.shields.io/npm/l/@ackplus/nest-seeder.svg" alt="License" /></a>
+  <a href="https://www.npmjs.com/package/@ackplus/nest-seeder"><img src="https://img.shields.io/npm/dm/@ackplus/nest-seeder.svg" alt="Downloads" /></a>
+</p>
+
+## 📚 Documentation
+
+**👉 Full documentation & guides: [ack-solutions.github.io/nest-seeder](https://ack-solutions.github.io/nest-seeder/)**
+
+| | |
+| --- | --- |
+| 🚀 [Getting Started](https://ack-solutions.github.io/nest-seeder/guide/getting-started) | 5-minute quickstart |
+| 🏭 [Factories](https://ack-solutions.github.io/nest-seeder/guide/factories) | Generate realistic data |
+| 🌱 [Seeders](https://ack-solutions.github.io/nest-seeder/guide/seeders) | Insert & drop data |
+| 🖥️ [CLI Reference](https://ack-solutions.github.io/nest-seeder/guide/cli) | Every command & flag |
+| 📖 [API Reference](https://ack-solutions.github.io/nest-seeder/api/) | Full API |
+| 🔀 [Migration v1 → v2](https://ack-solutions.github.io/nest-seeder/migration) | Upgrade guide |
+| 📝 [Changelog](https://ack-solutions.github.io/nest-seeder/changelog) | What changed |
 
 ## ✨ Features
 
-- 🌱 **CLI-Based** - Simple command-line interface, no app code modifications needed
-- 🏭 **Factory Pattern** - Generate realistic test data with Faker.js
-- 🔄 **Multiple ORMs** - Support for TypeORM, Mongoose, and Prisma
-- 📦 **Batch Operations** - Efficient bulk data insertion
-- 🎯 **Selective Seeding** - Run specific seeders by name
-- 🔥 **Refresh Mode** - Drop existing data before seeding
-- 🧪 **Test-Friendly** - Perfect for testing and development
-- 📝 **TypeScript** - Full TypeScript support with type safety
+- 🖥️ **CLI-first** — run `nest-seed` with zero changes to your app code. Auto-detects your config.
+- 🏭 **Factories + Faker.js** — declare data with the `@Factory` decorator; supports dependent fields, inheritance, and overrides.
+- 🔄 **Any ORM** — TypeORM, Mongoose, Prisma, or anything Nest can inject.
+- 🎯 **Selective & safe** — run seeders by name, `--refresh` in foreign-key-safe order, or preview with `--dry-run`.
+- 🛠️ **Scaffolding** — `nest-seed init` generates a config, factory, and seeder.
+- 📦 **Dual ESM + CJS** with full TypeScript declarations.
 
 ## 📦 Installation
 
 ```bash
 npm install @ackplus/nest-seeder @faker-js/faker
-# or
-pnpm add @ackplus/nest-seeder @faker-js/faker
-# or
-yarn add @ackplus/nest-seeder @faker-js/faker
-```
-
-**For TypeScript config files**, also install:
-
-```bash
+# For TypeScript config files:
 npm install -D ts-node typescript
 ```
 
-## 🚀 Quick Start (5 Steps)
+> Requires Node 18+ and NestJS 10 or 11.
 
-### Step 1: Create Entity
+## 🚀 Quick Start
 
-```typescript
-// src/entities/user.entity.ts
-import { Entity, PrimaryGeneratedColumn, Column } from 'typeorm';
+The fastest path is to scaffold the files:
 
-@Entity('users')
-export class User {
-  @PrimaryGeneratedColumn()
-  id: number;
-
-  @Column()
-  name: string;
-
-  @Column({ unique: true })
-  email: string;
-
-  @Column()
-  role: string;
-}
+```bash
+npx nest-seed init
 ```
 
-### Step 2: Create Factory
+…or wire them up by hand:
 
-```typescript
-// src/factories/user.factory.ts
+**1. Factory** — `src/database/factories/user.factory.ts`
+
+```ts
 import { Factory } from '@ackplus/nest-seeder';
 
 export class UserFactory {
-  @Factory((faker) => faker.person.fullName())
-  name: string;
+  @Factory((faker) => faker.person.firstName())
+  firstName: string;
 
-  @Factory((faker) => faker.internet.email())
+  @Factory((faker) => faker.person.lastName())
+  lastName: string;
+
+  @Factory(
+    (faker, ctx) => faker.internet.email({ firstName: ctx.firstName, lastName: ctx.lastName }).toLowerCase(),
+    ['firstName', 'lastName'],
+  )
   email: string;
 
   @Factory((faker) => faker.helpers.arrayElement(['admin', 'user', 'guest']))
@@ -71,558 +78,105 @@ export class UserFactory {
 }
 ```
 
-### Step 3: Create Seeder
+**2. Seeder** — `src/database/seeders/user.seeder.ts`
 
-```typescript
-// src/seeders/user.seeder.ts
+```ts
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Seeder, DataFactory } from '@ackplus/nest-seeder';
+import { Seeder, SeederName, DataFactory } from '@ackplus/nest-seeder';
 import { User } from '../entities/user.entity';
 import { UserFactory } from '../factories/user.factory';
 
 @Injectable()
+@SeederName('users')
 export class UserSeeder implements Seeder {
   constructor(
-    @InjectRepository(User)
-    private readonly userRepository: Repository<User>,
+    @InjectRepository(User) private readonly userRepository: Repository<User>,
   ) {}
 
   async seed(): Promise<void> {
-    // Create factory instance
     const factory = DataFactory.createForClass(UserFactory);
-
-    // Generate 10 users
     const users = factory.generate(10);
-
-    // Save to database
     await this.userRepository.save(users);
-    
-    console.log('✅ Seeded 10 users');
   }
 
   async drop(): Promise<void> {
-    // Clear all users
-    await this.userRepository.delete({});
-    
-    console.log('🗑️  Dropped all users');
+    await this.userRepository.createQueryBuilder().delete().execute();
   }
 }
 ```
 
-### Step 4: Create Configuration File
+**3. Config** — `seeder.config.ts` (project root)
 
-Create `seeder.config.ts` in your **project root**:
-
-> **Note:** The seeder configuration is independent and does not require importing your main `AppModule`.
-
-```typescript
-// seeder.config.ts
+```ts
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { ConfigModule, ConfigService } from '@nestjs/config';
-import { User } from './src/entities/user.entity';
-import { UserSeeder } from './src/seeders/user.seeder';
-import * as dotenv from 'dotenv';
+import { defineSeederConfig } from '@ackplus/nest-seeder';
+import { User } from './src/database/entities/user.entity';
+import { UserSeeder } from './src/database/seeders/user.seeder';
 
-dotenv.config();
-
-export default {
-  imports: [
-    ConfigModule.forRoot({
-      isGlobal: true,
-    }),
-    TypeOrmModule.forRootAsync({
-      imports: [ConfigModule],
-      inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
-        type: 'postgres',
-        host: config.get<string>('DB_HOST'),
-        port: config.get<number>('DB_PORT'),
-        username: config.get<string>('DB_USERNAME'),
-        password: config.get<string>('DB_PASSWORD'),
-        database: config.get<string>('DB_DATABASE'),
-        entities: [User],
-        synchronize: true,
-      }),
-    }),
-    TypeOrmModule.forFeature([User]),
-  ],
-  seeders: [UserSeeder],
-};
-```
-
-### Step 5: Run Seeder
-
-Add script to `package.json`:
-
-```json
-{
-  "scripts": {
-    "seed": "node -r ts-node/register -r tsconfig-paths/register ./node_modules/@ackplus/nest-seeder/dist/cli.js -c ./seeder.config.ts"
-  }
-}
-```
-
-Run it:
-
-```bash
-npm run seed
-```
-
-**That's it!** Your database is now seeded! 🎉
-
-## 🖥️ CLI Commands
-
-Since you are running the seeder via a package script, you can pass arguments using `--`.
-
-### Basic Usage
-
-```bash
-# Run all seeders
-npm run seed
-
-# Drop and reseed
-npm run seed -- --refresh
-
-# Run specific seeder
-npm run seed -- --name UserSeeder
-
-# Run multiple seeders
-npm run seed -- --name UserSeeder ProductSeeder
-```
-
-### Available Options
-
-| Option | Alias | Description | Default |
-|--------|-------|-------------|---------|
-| `--config` | `-c` | Path to configuration file | (required) |
-| `--refresh` | `-r` | Drop data before seeding | `false` |
-| `--name` | `-n` | Run specific seeder(s) | (all) |
-| `--dummyData` | `-d` | Include dummy data flag | `false` |
-| `--help` | `-h` | Show help | |
-
-### Package.json Scripts
-
-You can also define specific scripts for convenience:
-
-```json
-{
-  "scripts": {
-    "seed": "node -r ts-node/register -r tsconfig-paths/register ./node_modules/@ackplus/nest-seeder/dist/cli.js -c ./seeder.config.ts",
-    "seed:refresh": "npm run seed -- --refresh",
-    "seed:users": "npm run seed -- --name UserSeeder",
-    "seed:watch": "nodemon --watch src/seeders --ext ts --exec \"npm run seed\""
-  }
-}
-```
-
-## ⚙️ Configuration
-
-### TypeORM Example
-
-```typescript
-// seeder.config.ts
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { User, Post, Comment } from './src/entities';
-import { UserSeeder, PostSeeder, CommentSeeder } from './src/seeders';
-
-export default {
+export default defineSeederConfig({
   imports: [
     TypeOrmModule.forRoot({
       type: 'postgres',
-      host: process.env.DB_HOST || 'localhost',
-      port: parseInt(process.env.DB_PORT) || 5432,
-      username: process.env.DB_USER || 'postgres',
-      password: process.env.DB_PASSWORD || 'postgres',
-      database: process.env.DB_NAME || 'mydb',
-      entities: [User, Post, Comment],
-      synchronize: true,
-    }),
-    TypeOrmModule.forFeature([User, Post, Comment]),
-  ],
-  seeders: [UserSeeder, PostSeeder, CommentSeeder],
-};
-```
-
-### MongoDB/Mongoose Example
-
-```typescript
-// seeder.config.ts
-import { MongooseModule } from '@nestjs/mongoose';
-import { User, UserSchema } from './src/schemas/user.schema';
-import { UserSeeder } from './src/seeders/user.seeder';
-
-export default {
-  imports: [
-    MongooseModule.forRoot('mongodb://localhost/mydb'),
-    MongooseModule.forFeature([
-      { name: User.name, schema: UserSchema }
-    ]),
-  ],
-  seeders: [UserSeeder],
-};
-```
-
-### SQLite Example
-
-```typescript
-// seeder.config.ts
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { User } from './src/entities/user.entity';
-import { UserSeeder } from './src/seeders/user.seeder';
-
-export default {
-  imports: [
-    TypeOrmModule.forRoot({
-      type: 'sqlite',
-      database: 'database.sqlite',
+      host: process.env.DB_HOST ?? 'localhost',
+      port: Number(process.env.DB_PORT ?? 5432),
+      username: process.env.DB_USERNAME ?? 'postgres',
+      password: process.env.DB_PASSWORD ?? 'postgres',
+      database: process.env.DB_DATABASE ?? 'app',
       entities: [User],
       synchronize: true,
     }),
     TypeOrmModule.forFeature([User]),
   ],
   seeders: [UserSeeder],
-};
+});
 ```
 
-## 🏭 Factories
+**4. Run** — add a script and go
 
-### Basic Factory
-
-```typescript
-import { Factory } from '@ackplus/nest-seeder';
-
-export class UserFactory {
-  @Factory((faker) => faker.person.fullName())
-  name: string;
-
-  @Factory((faker) => faker.internet.email())
-  email: string;
-
-  @Factory((faker) => faker.datatype.number({ min: 18, max: 80 }))
-  age: number;
-}
-```
-
-### Using Factory
-
-```typescript
-import { DataFactory } from '@ackplus/nest-seeder';
-import { UserFactory } from './user.factory';
-
-// Create factory
-const factory = DataFactory.createForClass(UserFactory);
-
-// Generate one object
-const user = factory.generate(1)[0];
-
-// Generate multiple objects
-const users = factory.generate(10);
-
-// Generate with overrides
-const admin = factory.generate(1, { role: 'admin' })[0];
-```
-
-### Factory with Relationships
-
-```typescript
-import { Factory } from '@ackplus/nest-seeder';
-
-export class PostFactory {
-  @Factory((faker) => faker.lorem.sentence())
-  title: string;
-
-  @Factory((faker) => faker.lorem.paragraphs(3))
-  content: string;
-
-  // Will be set manually in seeder
-  authorId: number;
-}
-```
-
-## 🌱 Seeders
-
-### Basic Seeder
-
-```typescript
-import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Seeder, DataFactory } from '@ackplus/nest-seeder';
-import { User } from '../entities/user.entity';
-import { UserFactory } from '../factories/user.factory';
-
-@Injectable()
-export class UserSeeder implements Seeder {
-  constructor(
-    @InjectRepository(User)
-    private readonly userRepository: Repository<User>,
-  ) {}
-
-  async seed(): Promise<void> {
-    const factory = DataFactory.createForClass(UserFactory);
-    const users = factory.generate(10);
-    await this.userRepository.save(users);
-  }
-
-  async drop(): Promise<void> {
-    await this.userRepository.delete({});
+```json
+{
+  "scripts": {
+    "seed": "nest-seed"
   }
 }
 ```
-
-### Seeder with Relationships
-
-```typescript
-import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Seeder, DataFactory } from '@ackplus/nest-seeder';
-import { User } from '../entities/user.entity';
-import { Post } from '../entities/post.entity';
-import { UserFactory } from '../factories/user.factory';
-import { PostFactory } from '../factories/post.factory';
-
-@Injectable()
-export class PostSeeder implements Seeder {
-  constructor(
-    @InjectRepository(User)
-    private readonly userRepository: Repository<User>,
-    @InjectRepository(Post)
-    private readonly postRepository: Repository<Post>,
-  ) {}
-
-  async seed(): Promise<void> {
-    // Get existing users
-    const users = await this.userRepository.find();
-    
-    if (users.length === 0) {
-      console.log('⚠️  No users found. Run UserSeeder first.');
-      return;
-    }
-
-    // Create posts for each user
-    const postFactory = DataFactory.createForClass(PostFactory);
-    
-    for (const user of users) {
-      // Generate 3 posts per user
-      const posts = postFactory.generate(3).map(post => ({
-        ...post,
-        author: user,
-      }));
-      
-      await this.postRepository.save(posts);
-    }
-    
-    console.log(`✅ Seeded ${users.length * 3} posts`);
-  }
-
-  async drop(): Promise<void> {
-    await this.postRepository.delete({});
-  }
-}
-```
-
-### Conditional Seeding
-
-```typescript
-import { Injectable } from '@nestjs/common';
-import { Seeder, SeederServiceOptions, DataFactory } from '@ackplus/nest-seeder';
-
-@Injectable()
-export class UserSeeder implements Seeder {
-  async seed(options?: SeederServiceOptions): Promise<void> {
-    const factory = DataFactory.createForClass(UserFactory);
-    
-    // Seed more data if dummyData flag is set
-    const count = options?.dummyData ? 100 : 10;
-    const users = factory.generate(count);
-    
-    await this.userRepository.save(users);
-    console.log(`✅ Seeded ${count} users`);
-  }
-
-  async drop(): Promise<void> {
-    await this.userRepository.delete({});
-  }
-}
-```
-
-Run with dummy data:
 
 ```bash
-nest-seed -c seeder.config.ts --dummyData
+npm run seed
 ```
 
-### MongoDB/Mongoose Seeder
+That's it — the CLI auto-discovers `seeder.config.ts` and seeds your database. 🎉
 
-```typescript
-import { Injectable } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
-import { Seeder, DataFactory } from '@ackplus/nest-seeder';
-import { User } from '../schemas/user.schema';
-import { UserFactory } from '../factories/user.factory';
+## 🖥️ CLI at a glance
 
-@Injectable()
-export class UserSeeder implements Seeder {
-  constructor(
-    @InjectModel(User.name)
-    private readonly userModel: Model<User>,
-  ) {}
-
-  async seed(): Promise<void> {
-    const factory = DataFactory.createForClass(UserFactory);
-    const users = factory.generate(10);
-    await this.userModel.insertMany(users);
-  }
-
-  async drop(): Promise<void> {
-    await this.userModel.deleteMany({});
-  }
-}
+```bash
+nest-seed                      # run all seeders (config auto-detected)
+nest-seed --refresh            # drop (reverse order) then reseed
+nest-seed --name users posts   # run only specific seeders
+nest-seed --dry-run            # preview without writing
+nest-seed list                 # list registered seeders
+nest-seed init --orm mongoose  # scaffold starter files
+nest-seed --help               # all options
 ```
 
-## 🔥 Advanced Examples
+See the [full CLI reference](https://ack-solutions.github.io/nest-seeder/guide/cli).
 
-### Custom Providers in Config
+## 🔀 Upgrading from v1?
 
-```typescript
-// seeder.config.ts
-import { CustomService } from './src/services/custom.service';
-
-export default {
-  imports: [
-    TypeOrmModule.forRoot({ /* ... */ }),
-    TypeOrmModule.forFeature([User]),
-  ],
-  seeders: [UserSeeder],
-  providers: [CustomService], // Inject custom services
-};
-```
-
-### Environment-Based Configuration
-
-```typescript
-// seeder.config.ts
-import * as dotenv from 'dotenv';
-dotenv.config();
-
-const isDev = process.env.NODE_ENV === 'development';
-
-export default {
-  imports: [
-    TypeOrmModule.forRoot({
-      type: 'postgres',
-      host: process.env.DB_HOST,
-      database: isDev ? 'mydb_dev' : 'mydb_prod',
-      synchronize: isDev,
-    }),
-    TypeOrmModule.forFeature([User, Post]),
-  ],
-  seeders: isDev 
-    ? [UserSeeder, PostSeeder, TestDataSeeder]
-    : [UserSeeder, PostSeeder],
-};
-```
-
-### Batch Insert for Performance
-
-```typescript
-@Injectable()
-export class UserSeeder implements Seeder {
-  async seed(): Promise<void> {
-    const factory = DataFactory.createForClass(UserFactory);
-    const batchSize = 1000;
-    const totalRecords = 10000;
-    
-    for (let i = 0; i < totalRecords; i += batchSize) {
-      const users = factory.generate(batchSize);
-      await this.userRepository.save(users);
-      console.log(`✅ Seeded ${Math.min(i + batchSize, totalRecords)}/${totalRecords} users`);
-    }
-  }
-
-  async drop(): Promise<void> {
-    await this.userRepository.delete({});
-  }
-}
-```
-
-## 📚 API Reference
-
-### DataFactory
-
-```typescript
-class DataFactory {
-  // Create factory for a class
-  static createForClass<T>(factoryClass: new () => T): DataFactory<T>
-  
-  // Generate instances
-  generate(count: number, override?: Partial<T>): T[]
-}
-```
-
-### Seeder Interface
-
-```typescript
-interface Seeder {
-  // Seed data into database
-  seed(options?: SeederServiceOptions): Promise<void>
-  
-  // Drop/clear data from database
-  drop(options?: SeederServiceOptions): Promise<void>
-}
-```
-
-### @Factory Decorator
-
-```typescript
-// Simple factory
-@Factory((faker) => faker.person.fullName())
-name: string;
-
-// With options
-@Factory((faker) => faker.datatype.number({ min: 1, max: 100 }))
-age: number;
-
-// Array values
-@Factory((faker) => faker.helpers.arrayElement(['admin', 'user']))
-role: string;
-```
-
-### SeederServiceOptions
-
-```typescript
-interface SeederServiceOptions {
-  refresh?: boolean;      // Drop before seeding
-  name?: string[];        // Run specific seeders
-  dummyData?: boolean;    // Custom flag for your logic
-}
-```
+v2 keeps the `@Factory` / `Seeder` / `DataFactory` core and modernizes the CLI, config, and
+packaging. Most apps upgrade in minutes — follow the
+**[Migration Guide](https://ack-solutions.github.io/nest-seeder/migration)**.
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions welcome! See the [Contributing Guide](https://github.com/ack-solutions/nest-seeder/blob/main/CONTRIBUTING.md).
 
 ## 📄 License
 
-This project is licensed under the MIT License.
-
-## 🙏 Acknowledgments
-
-- Built with [NestJS](https://nestjs.com/)
-- Powered by [Faker.js](https://fakerjs.dev/)
-- Inspired by database seeding patterns from Laravel and other frameworks
-
-## 📮 Support
-
-If you have any questions or need help:
-- Open an issue on [GitHub](https://github.com/ackplus/nest-seeder/issues)
-- Check the [examples](./examples/) directory
-- Review the [Quick Start Guide](./QUICKSTART.md)
+[MIT](./LICENSE) © AckPlus
 
 ---
 
-Made with ❤️ for the NestJS community
+Built with [NestJS](https://nestjs.com/) · Powered by [Faker.js](https://fakerjs.dev/)

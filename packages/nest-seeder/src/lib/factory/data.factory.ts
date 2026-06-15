@@ -1,8 +1,7 @@
 import { faker } from '@faker-js/faker';
 import { Type } from '@nestjs/common';
 
-import { FactoryValue } from '../decorators/factory.decorator';
-import { Factory } from '../interfaces';
+import { FactoryInstance, FactoryOverrides } from '../interfaces';
 import {
     FactoryMetadataStorage,
     PropertyMetadataType,
@@ -11,86 +10,110 @@ import {
 
 export class DataFactory {
 
-    static createForClass(target: Type<unknown>): Factory {
+    /**
+     * Creates a factory for a class decorated with `@Factory` properties.
+     *
+     * @example
+     * const factory = DataFactory.createForClass(UserFactory);
+     * const users = factory.generate(10);
+     * const admin = factory.generateOne({ role: 'admin' });
+     */
+    static createForClass<T = Record<string, any>>(
+        target: Type<T>,
+    ): FactoryInstance<T> {
         if (!target) {
             throw new Error(
-                `Target class "${target}" passed in to the "TemplateFactory#createForClass()" method is "undefined".`,
+                'A target class is required by "DataFactory.createForClass()" but received "undefined".',
             );
         }
 
-        const properties = FactoryMetadataStorage.getPropertyMetadatasByTarget(target);
+        const properties =
+            FactoryMetadataStorage.getPropertyMetadatasByTarget(target as Type<unknown>);
 
         return {
-            generate: (
-                count: number,
-                values: Record<string, any> = {},
-            ): Record<string, FactoryValue>[] => {
-                const ret: Record<string, FactoryValue>[] = [];
-                for (let i = 0; i < count; i++) {
-                    ret.push(this.generate(properties, values));
+            generate: (count: number, overrides: FactoryOverrides<T> = {}): T[] => {
+                if (!Number.isInteger(count) || count < 0) {
+                    throw new Error(
+                        `"generate(count)" expects a non-negative integer but received "${count}".`,
+                    );
                 }
-                return ret;
+                const records: T[] = [];
+                for (let i = 0; i < count; i++) {
+                    records.push(DataFactory.generateOne<T>(properties, overrides));
+                }
+                return records;
             },
+            generateOne: (overrides: FactoryOverrides<T> = {}): T =>
+                DataFactory.generateOne<T>(properties, overrides),
         };
     }
 
-    private static generate(
+    private static generateOne<T>(
         properties: PropertyMetadataType[],
-        values: Record<string, any>,
-    ): Record<string, FactoryValue> {
-        const ctx = { ...values };
+        overrides: FactoryOverrides<T>,
+    ): T {
+        const overrideValues = (overrides ?? {}) as Record<string, any>;
 
-        return properties.reduce((result, property) => {
-            const propertyKey = property.propertyKey;
+        // The context seeds dependency resolution and starts from the
+        // overrides so that generators can read passed-in values.
+        const ctx: Record<string, any> = { ...overrideValues };
+
+        // The result always includes overrides — even keys that are not
+        // declared with `@Factory` (e.g. a foreign key set in a seeder).
+        const result: Record<string, any> = { ...overrideValues };
+
+        const propertyByKey = new Map<string, PropertyMetadataType>();
+        for (const property of properties) {
+            propertyByKey.set(property.propertyKey, property);
+        }
+
+        const resolving = new Set<string>();
+
+        const ensure = (key: string): any => {
+            if (key in ctx) {
+                return ctx[key];
+            }
+
+            const property = propertyByKey.get(key);
+            if (!property) {
+                return undefined;
+            }
+
+            // Guard against circular `dependsOn` chains.
+            if (resolving.has(key)) {
+                return undefined;
+            }
+            resolving.add(key);
+
             const { generator, dependsOn } = property.arg;
 
-            // Skip if the value is already generated in the context (ctx)
-            if (ctx[propertyKey] !== undefined) {
-                return {
-                    [propertyKey]: ctx[propertyKey],
-                    ...result,
-                };
-            }
-
-            // If the property has dependencies, ensure they are generated first
             if (Array.isArray(dependsOn)) {
-                dependsOn.forEach((dependency) => {
-                    if (ctx[dependency] === undefined) {
-                        // Find the dependent property and generate it if it hasn't been generated yet
-                        const dependentProperty = properties.find(
-                            (p) => p.propertyKey === dependency,
-                        );
-                        if (dependentProperty) {
-                            ctx[dependency] = typeof dependentProperty.arg.generator ===
-                                'function' ?
-                                dependentProperty.arg.generator(
-                                    faker,
-                                    ctx,
-                                ) :
-                                dependentProperty.arg;
-                        }
-                    }
-                });
+                for (const dependency of dependsOn) {
+                    ensure(dependency);
+                }
             }
 
-            // Generate the current field
-            ctx[propertyKey] = typeof generator === 'function' ?
-                generator(faker, ctx) :
-                generator;
+            ctx[key] =
+                typeof generator === 'function' ? generator(faker, ctx) : generator;
 
-            return {
-                [propertyKey]: ctx[propertyKey],
-                ...result,
-            };
-        }, {});
+            resolving.delete(key);
+            return ctx[key];
+        };
 
-        // return properties.reduce(
-        //   (r, p) => ({
-        //     [p.propertyKey]: ctx[p.propertyKey] = typeof p.arg === 'function' ? p.arg(faker, ctx) : p.arg,
-        //     ...r,
-        //   }),
-        //   {},
-        // );
+        for (const property of properties) {
+            const key = property.propertyKey;
+
+            // An explicit override always wins.
+            if (key in overrideValues) {
+                ctx[key] = overrideValues[key];
+                result[key] = overrideValues[key];
+                continue;
+            }
+
+            result[key] = ensure(key);
+        }
+
+        return result as T;
     }
 
 }

@@ -61,7 +61,7 @@ jobs:
       - name: Bump all workspace package versions
         shell: bash
         run: |
-          pnpm -r exec npm version "${{ steps.version.outputs.version }}" --no-git-tag-version
+          pnpm -r exec npm version "${{ steps.version.outputs.version }}" --no-git-tag-version --allow-same-version
 
       - name: Commit & push version changes
         shell: bash
@@ -78,6 +78,13 @@ jobs:
       - name: Build packages
         run: pnpm build
 
+      - name: Verify (typecheck + unit + e2e)
+        run: |
+          pnpm typecheck
+          pnpm -C packages/nest-seeder test
+          pnpm -C apps/example-app test
+          pnpm -C apps/example-app test:e2e
+
       - name: Publish packages
         shell: bash
         run: |
@@ -87,4 +94,6 @@ jobs:
             --provenance \
             --tag "${{ steps.version.outputs.dist_tag }}"
         env:
+          # Org-level npm automation token, exposed to this repo via org secrets.
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+

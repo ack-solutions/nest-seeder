@@ -1,9 +1,18 @@
-import { FactoryValue } from '../decorators/factory.decorator';
+/**
+ * Override values passed to a factory.
+ *
+ * Known factory properties keep their types (and autocomplete), while extra
+ * keys — e.g. a foreign key set in a seeder — are allowed too.
+ */
+export type FactoryOverrides<T> = Partial<T> & Record<string, unknown>;
 
+/**
+ * A factory produced by `DataFactory.createForClass()`.
+ */
+export interface FactoryInstance<T = Record<string, any>> {
+    /** Generate `count` records, applying optional overrides to each. */
+    generate(count: number, overrides?: FactoryOverrides<T>): T[];
 
-export interface Factory {
-    generate(
-        count: number,
-        values?: Record<string, any>
-    ): Record<string, FactoryValue>[];
+    /** Generate a single record, applying optional overrides. */
+    generateOne(overrides?: FactoryOverrides<T>): T;
 }

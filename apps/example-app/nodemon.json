@@ -1,7 +1,7 @@
 {
   "watch": ["src/database", "seeder.config.ts"],
   "ext": "ts",
-  "exec": "node ../../packages/nest-seeder/dist/cli.js -c seeder.config.ts",
+  "exec": "nest-seed",
   "delay": "1000"
 }
 

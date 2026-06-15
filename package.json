@@ -1,18 +1,42 @@
 {
-  "name": "nest-seeder",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "name": "nest-seeder-workspace",
+  "version": "2.0.0",
+  "description": "Monorepo for @ackplus/nest-seeder — a database seeding library for NestJS.",
   "private": true,
+  "license": "MIT",
+  "author": "AckPlus",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ack-solutions/nest-seeder.git"
+  },
+  "homepage": "https://ack-solutions.github.io/nest-seeder/",
   "scripts": {
     "build:packages": "pnpm -C packages/nest-seeder build",
     "build:example": "pnpm -C apps/example-app build",
     "build": "pnpm build:packages && pnpm build:example",
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "publish": "node scripts/publish.js"
+    "typecheck": "pnpm -C packages/nest-seeder typecheck",
+    "test": "pnpm -C packages/nest-seeder test && pnpm -C apps/example-app test",
+    "lint": "pnpm -C packages/nest-seeder lint",
+    "docs:dev": "pnpm -C docs dev",
+    "docs:build": "pnpm -C docs build",
+    "docs:preview": "pnpm -C docs preview",
+    "release": "node scripts/publish.js"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "packageManager": "pnpm@10.21.0"
+  "keywords": [
+    "nestjs",
+    "seeder",
+    "database",
+    "faker",
+    "typeorm",
+    "mongoose"
+  ],
+  "packageManager": "pnpm@10.21.0",
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@nestjs/core",
+      "esbuild",
+      "sqlite3",
+      "unrs-resolver"
+    ]
+  }
 }

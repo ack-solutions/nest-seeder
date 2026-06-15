@@ -1,13 +1,15 @@
-// seeder.config.ts - Configuration for nest-seed CLI
+// seeder.config.ts — configuration for the `nest-seed` CLI
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { defineSeederConfig } from '@ackplus/nest-seeder';
+
 import { User } from './src/database/entities/user.entity';
 import { Post } from './src/database/entities/post.entity';
 import { UserSeeder } from './src/database/seeders/user.seeder';
 import { PostSeeder } from './src/database/seeders/post.seeder';
 
-export default {
+export default defineSeederConfig({
   imports: [
-    // Database configuration
+    // Database connection
     TypeOrmModule.forRoot({
       type: 'sqlite',
       database: 'database.sqlite',
@@ -15,15 +17,14 @@ export default {
       synchronize: true,
       logging: false,
     }),
-    
-    // Entity repositories
+
+    // Entity repositories made available to seeders
     TypeOrmModule.forFeature([User, Post]),
   ],
-  
-  // Seeders to run (in order)
-  seeders: [
-    UserSeeder,  // Run first
-    PostSeeder,  // Run second (depends on users)
-  ],
-};
 
+  // Seeders run top-to-bottom; drops run in reverse for FK safety.
+  seeders: [
+    UserSeeder, // runs first
+    PostSeeder, // runs second (depends on users)
+  ],
+});
