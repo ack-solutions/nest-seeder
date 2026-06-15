@@ -1,217 +1,95 @@
-# Example App - @ackplus/nest-seeder
+# Example App — @ackplus/nest-seeder
 
-Complete working example demonstrating nest-seeder with TypeORM and SQLite using the **CLI approach**.
+A complete, runnable example of `@ackplus/nest-seeder` with **TypeORM + SQLite**, using the CLI.
 
-## 🚀 Quick Start
+> 📚 Full docs: **[ack-solutions.github.io/nest-seeder](https://ack-solutions.github.io/nest-seeder/)**
 
-### 1. Build the Package
+## 🚀 Quick start
 
 ```bash
-# From root directory
+# 1. Build the library (from the repo root)
 pnpm -C packages/nest-seeder build
+
+# 2. From this folder, seed the SQLite database
+pnpm seed                # run all seeders (10 users, 30 posts)
+pnpm seed:refresh        # drop (reverse order) then reseed
+pnpm seed:users          # run only the "users" seeder (--name users)
+pnpm seed:list           # list registered seeders
+pnpm seed:dry            # preview without writing
+pnpm seed:watch          # auto-reseed on file changes
 ```
 
-### 2. Run Tests
+All `seed*` scripts use the `nest-seed` binary, which auto-discovers `seeder.config.ts`.
 
-```bash
-pnpm test
-```
-
-### 3. Seed Database
-
-```bash
-# Basic seed (10 users, 30 posts)
-pnpm seed
-
-# Drop and reseed
-pnpm seed:refresh
-
-# Run specific seeder
-pnpm seed:users
-
-# Watch mode (auto-reseed on changes)
-pnpm seed:watch
-```
-
-### 4. Start Application
-
-```bash
-pnpm start:dev
-```
-
-## 📁 Project Structure
+## 🗂️ Structure
 
 ```
 example-app/
 ├── src/
 │   ├── database/
-│   │   ├── entities/       # TypeORM entities
-│   │   ├── factories/      # Data factories
-│   │   └── seeders/        # Seeders
-│   ├── app.module.ts       # Main module (no seeder imports!)
-│   └── main.ts            # App entry
-├── seeder.config.ts       # Seeder CLI configuration
-└── test/                  # Tests
+│   │   ├── entities/      # TypeORM entities (User, Post)
+│   │   ├── factories/     # UserFactory, PostFactory
+│   │   └── seeders/       # UserSeeder, PostSeeder (@SeederName)
+│   ├── app.module.ts      # main app module — note: no seeder imports needed
+│   └── main.ts
+├── seeder.config.ts       # nest-seed configuration (defineSeederConfig)
+└── test/                  # tests
 ```
 
-## 🎯 Features Demonstrated
+## 🎯 What it demonstrates
 
-- ✅ **CLI-based seeding** (no app.module.ts modifications)
-- ✅ TypeORM with SQLite
-- ✅ Entity relationships (One-to-Many)
-- ✅ Factory pattern with Faker.js
-- ✅ Batch insertion
-- ✅ Watch mode with auto-reload
-- ✅ 40+ tests with 90%+ coverage
+- ✅ CLI-based seeding (no `app.module.ts` changes)
+- ✅ TypeORM + SQLite with a One-to-Many relationship
+- ✅ `@Factory` + Faker.js, including a dependent field
+- ✅ Relationship seeding via a foreign-key override (`generate(n, { authorId })`)
+- ✅ `@SeederName` stable names, `--refresh`, `--dry-run`, `list`
+- ✅ Correct `drop()` using `createQueryBuilder().delete().execute()`
+- ✅ A passing Jest suite (factories + seeder integration + e2e)
 
-## 📊 What's Included
+## 🧩 Key files
 
-### Configuration
+**`seeder.config.ts`**
 
-**seeder.config.ts** - CLI configuration file:
-```typescript
-export default {
+```ts
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { defineSeederConfig } from '@ackplus/nest-seeder';
+import { User } from './src/database/entities/user.entity';
+import { Post } from './src/database/entities/post.entity';
+import { UserSeeder } from './src/database/seeders/user.seeder';
+import { PostSeeder } from './src/database/seeders/post.seeder';
+
+export default defineSeederConfig({
   imports: [
-    TypeOrmModule.forRoot({ /* db config */ }),
+    TypeOrmModule.forRoot({ type: 'sqlite', database: 'database.sqlite', entities: [User, Post], synchronize: true }),
     TypeOrmModule.forFeature([User, Post]),
   ],
-  seeders: [UserSeeder, PostSeeder],
-};
+  seeders: [UserSeeder, PostSeeder], // parents first; drops run in reverse
+});
 ```
 
-### Entities
-- **User** - email, name, role, posts relationship
-- **Post** - title, content, status, author relationship
+**A seeder's `drop()`** (modern TypeORM — never `delete({})`):
 
-### Factories
-- **UserFactory** - Generates realistic user data
-- **PostFactory** - Generates realistic post data
-
-### Seeders
-- **UserSeeder** - Seeds users with batch insertion
-- **PostSeeder** - Seeds posts with relationships
-
-### Tests
-- Factory tests (21 tests)
-- Seeder integration tests (17 tests)
-- E2E tests (8 tests)
-
-## 💡 Examples
-
-### Entity
-
-```typescript
-@Entity('users')
-export class User {
-  @PrimaryGeneratedColumn()
-  id: number;
-
-  @Column({ unique: true })
-  email: string;
-
-  @OneToMany(() => Post, (post) => post.author)
-  posts: Post[];
+```ts
+async drop(): Promise<void> {
+  await this.userRepository.createQueryBuilder().delete().execute();
 }
 ```
 
-### Factory
-
-```typescript
-export class UserFactory {
-  @Factory((faker) => faker.internet.email())
-  email: string;
-
-  @Factory((faker) => faker.person.firstName())
-  firstName: string;
-}
-```
-
-### Seeder
-
-```typescript
-@Injectable()
-export class UserSeeder implements Seeder {
-  async seed(options: SeederServiceOptions): Promise<void> {
-    const factory = DataFactory.createForClass(UserFactory);
-    const users = factory.generate(10);
-    await this.userRepository.save(users);
-  }
-
-  async drop(options: SeederServiceOptions): Promise<void> {
-    await this.userRepository.delete({});
-  }
-}
-```
-
-## 🛠️ Development
-
-### Available Commands
+## 🧪 Testing
 
 ```bash
-# Seeding
-pnpm seed              # Run all seeders
-pnpm seed:refresh      # Drop and reseed all
-pnpm seed:users        # Run only UserSeeder
-pnpm seed:watch        # Auto-reseed on file changes
-
-# Development
-pnpm start:dev         # Start app in watch mode
-pnpm test:watch        # Run tests in watch mode
-
-# Testing
-pnpm test              # Run all tests
-pnpm test:cov          # Run with coverage
-pnpm test:e2e          # Run E2E tests
+pnpm test            # all tests
+pnpm test:cov        # with coverage
+pnpm test:e2e        # e2e tests
 ```
-
-### Watch Modes
-
-Run multiple terminals for full development workflow:
-
-```bash
-# Terminal 1: Application server
-pnpm start:dev
-
-# Terminal 2: Tests with auto-reload
-pnpm test:watch
-
-# Terminal 3: Auto-reseed on changes
-pnpm seed:watch
-```
-
-### Adding New Entity
-
-1. Create entity in `src/database/entities/`
-2. Create factory in `src/database/factories/`
-3. Create seeder in `src/database/seeders/`
-4. **Update `seeder.config.ts`** (not app.module.ts!)
-5. Run `pnpm seed`
 
 ## 🐛 Troubleshooting
 
-**Database locked error:**
-```bash
-rm database.sqlite
-pnpm seed
-```
+- **Stale data / locked DB:** `rm -f database.sqlite && pnpm seed`
+- **Import errors:** rebuild the library — `pnpm -C packages/nest-seeder build`
 
-**Import errors:**
-```bash
-pnpm -C packages/nest-seeder build
-```
+## 📚 Learn more
 
-**Test failures:**
-```bash
-pnpm test --clearCache
-pnpm test
-```
-
-## 📚 Learn More
-
-- [Main Documentation](../../packages/nest-seeder/README.md)
-- [Quick Start Guide](../../packages/nest-seeder/QUICKSTART.md)
-- [More Examples](../../packages/nest-seeder/examples/)
-
----
-
-**Questions?** Check the [main README](../../README.md) or open an issue!
+- [Documentation](https://ack-solutions.github.io/nest-seeder/)
+- [Getting Started](https://ack-solutions.github.io/nest-seeder/guide/getting-started)
+- [Repository README](../../README.md)

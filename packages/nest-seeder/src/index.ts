@@ -10,6 +10,12 @@ export * from './lib/factory/data.factory';
 
 export * from './lib/decorators/factory.decorator';
 
+export * from './lib/decorators/seeder.decorator';
+
+export * from './lib/config/define-config';
+
+export * from './lib/interfaces/factory.interface';
+
 export * from './lib/interfaces/seeder-options-factory.interface';
 
 export * from './lib/interfaces/seeder-module-async-options.interface';

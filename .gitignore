@@ -1,2 +1,29 @@
+# dependencies
 node_modules
+
+# build output
 dist
+*.tsbuildinfo
+
+# docs (VitePress)
+docs/.vitepress/dist
+docs/.vitepress/cache
+
+# test output
+coverage
+
+# databases
+*.sqlite
+*.sqlite3
+*.db
+
+# logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# OS / editor
+.DS_Store
+.idea
+.vscode/*
+!.vscode/extensions.json

@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.21.0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build library
+        run: pnpm build:packages
+
+      - name: Type-check
+        run: pnpm typecheck
+
+      - name: Unit tests (library)
+        run: pnpm -C packages/nest-seeder test
+
+      - name: Build example app
+        run: pnpm build:example
+
+      - name: Integration tests (example app)
+        run: pnpm -C apps/example-app test
+
+      - name: End-to-end CLI tests (example app)
+        run: pnpm -C apps/example-app test:e2e

@@ -1,11 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Seeder, SeederServiceOptions, DataFactory } from '@ackplus/nest-seeder';
+import { Seeder, SeederName, SeederServiceOptions, DataFactory } from '@ackplus/nest-seeder';
 import { User } from '../entities/user.entity';
 import { UserFactory } from '../factories/user.factory';
 
 @Injectable()
+@SeederName('users')
 export class UserSeeder implements Seeder {
   constructor(
     @InjectRepository(User)
@@ -53,7 +54,7 @@ export class UserSeeder implements Seeder {
       return;
     }
     
-    await this.userRepository.delete({});
+    await this.userRepository.createQueryBuilder().delete().execute();
     console.log(`✅ Dropped ${count} users`);
   }
 }

@@ -1,45 +1,41 @@
-# ⚡ Quick Start - 5 Minutes to Seeding!
+# ⚡ Quick Start
 
-Get started with `@ackplus/nest-seeder` in just 5 simple steps.
+Get seeding with `@ackplus/nest-seeder` in a few minutes.
+For the full guide, see **[ack-solutions.github.io/nest-seeder](https://ack-solutions.github.io/nest-seeder/guide/getting-started)**.
 
-## 📦 Installation
+## Install
 
 ```bash
 npm install @ackplus/nest-seeder @faker-js/faker
-npm install -D ts-node typescript
+npm install -D ts-node typescript   # for .ts config files
 ```
 
-## Step 1: Create an Entity
+## Scaffold (fastest)
 
-```typescript
-// src/entities/user.entity.ts
-import { Entity, PrimaryGeneratedColumn, Column } from 'typeorm';
-
-@Entity('users')
-export class User {
-  @PrimaryGeneratedColumn()
-  id: number;
-
-  @Column()
-  name: string;
-
-  @Column({ unique: true })
-  email: string;
-
-  @Column({ default: 'user' })
-  role: string;
-}
+```bash
+npx nest-seed init
 ```
 
-## Step 2: Create a Factory
+This creates `seeder.config.ts`, a factory, and a seeder. Point the config at your database, then:
 
-```typescript
-// src/factories/user.factory.ts
+```json
+{ "scripts": { "seed": "nest-seed" } }
+```
+
+```bash
+npm run seed
+```
+
+## Or wire it up by hand
+
+**1. Factory** — `src/database/factories/user.factory.ts`
+
+```ts
 import { Factory } from '@ackplus/nest-seeder';
 
 export class UserFactory {
-  @Factory((faker) => faker.person.fullName())
-  name: string;
+  @Factory((faker) => faker.person.firstName())
+  firstName: string;
 
   @Factory((faker) => faker.internet.email())
   email: string;
@@ -49,175 +45,62 @@ export class UserFactory {
 }
 ```
 
-## Step 3: Create a Seeder
+**2. Seeder** — `src/database/seeders/user.seeder.ts`
 
-```typescript
-// src/seeders/user.seeder.ts
+```ts
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Seeder, DataFactory } from '@ackplus/nest-seeder';
+import { Seeder, SeederName, DataFactory } from '@ackplus/nest-seeder';
 import { User } from '../entities/user.entity';
 import { UserFactory } from '../factories/user.factory';
 
 @Injectable()
+@SeederName('users')
 export class UserSeeder implements Seeder {
   constructor(
-    @InjectRepository(User)
-    private readonly userRepository: Repository<User>,
+    @InjectRepository(User) private readonly userRepository: Repository<User>,
   ) {}
 
   async seed(): Promise<void> {
-    const factory = DataFactory.createForClass(UserFactory);
-    const users = factory.generate(10);
+    const users = DataFactory.createForClass(UserFactory).generate(10);
     await this.userRepository.save(users);
-    console.log('✅ Seeded 10 users');
   }
 
   async drop(): Promise<void> {
-    await this.userRepository.delete({});
+    await this.userRepository.createQueryBuilder().delete().execute();
   }
 }
 ```
 
-## Step 4: Create Seeder Configuration
+**3. Config** — `seeder.config.ts`
 
-Create `seeder.config.ts` in your **project root**:
-
-> **Note:** The seeder configuration is independent and does not require importing your main `AppModule`.
-
-```typescript
-// seeder.config.ts (in project root)
+```ts
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { ConfigModule, ConfigService } from '@nestjs/config';
-import { User } from './src/entities/user.entity';
-import { UserSeeder } from './src/seeders/user.seeder';
-import * as dotenv from 'dotenv';
+import { defineSeederConfig } from '@ackplus/nest-seeder';
+import { User } from './src/database/entities/user.entity';
+import { UserSeeder } from './src/database/seeders/user.seeder';
 
-dotenv.config();
-
-export default {
+export default defineSeederConfig({
   imports: [
-    ConfigModule.forRoot({
-      isGlobal: true,
-    }),
-    TypeOrmModule.forRootAsync({
-      imports: [ConfigModule],
-      inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
-        type: 'postgres',
-        host: config.get<string>('DB_HOST'),
-        port: config.get<number>('DB_PORT'),
-        username: config.get<string>('DB_USERNAME'),
-        password: config.get<string>('DB_PASSWORD'),
-        database: config.get<string>('DB_DATABASE'),
-        entities: [User],
-        synchronize: true,
-      }),
-    }),
+    TypeOrmModule.forRoot({ type: 'sqlite', database: 'db.sqlite', entities: [User], synchronize: true }),
     TypeOrmModule.forFeature([User]),
   ],
   seeders: [UserSeeder],
-};
+});
 ```
 
-## Step 5: Add Script & Run
-
-Add to `package.json`:
-
-```json
-{
-  "scripts": {
-    "seed": "node -r ts-node/register -r tsconfig-paths/register ./node_modules/@ackplus/nest-seeder/dist/cli.js -c ./seeder.config.ts",
-    "seed:refresh": "npm run seed -- --refresh"
-  }
-}
-```
-
-Run it:
+**4. Run**
 
 ```bash
-npm run seed
+npm run seed              # seed
+npm run seed -- --refresh # drop (reverse order) then reseed
+nest-seed list            # see available seeders
 ```
 
-**Output:**
-```
-🌱 Starting NestJS Seeder...
-📁 Loading configuration from: seeder.config.ts
-[Nest] Starting Nest application...
-[Nest] TypeOrmModule dependencies initialized
-✅ Seeded 10 users
-```
+## Next steps
 
-## 🎉 Success!
-
-You've successfully seeded your database! 
-
-## 📚 Next Steps
-
-### Run with options:
-
-```bash
-# Drop and reseed
-npm run seed:refresh
-
-# Run specific seeder
-npm run seed -- --name UserSeeder
-
-# With dummy data flag
-npm run seed -- --dummyData
-```
-
-### Add More Seeders
-
-1. Create more factories and seeders
-2. Add them to `seeder.config.ts`:
-
-```typescript
-export default {
-  imports: [/* ... */],
-  seeders: [
-    UserSeeder,
-    PostSeeder,
-    CommentSeeder,
-  ],
-};
-```
-
-### Watch Mode for Development
-
-Add to `package.json`:
-
-```json
-{
-  "scripts": {
-    "seed:watch": "nodemon --watch src/seeders --watch src/factories --ext ts --exec \"npm run seed\""
-  }
-}
-```
-
-Run:
-
-```bash
-npm run seed:watch
-```
-
-Now your database will auto-reseed when you modify seeders or factories!
-
-## 💡 Tips
-
-- **Start small**: Begin with one entity, then add more
-- **Use factories**: They make generating data super easy
-- **Order matters**: List seeders in dependency order
-- **Drop method**: Always implement drop() to clear data
-- **Environment variables**: Use them for database config
-
-## 🔗 Resources
-
-- [Full Documentation](./README.md)
-- [Examples Directory](./examples/)
-- [GitHub Repository](https://github.com/ackplus/nest-seeder)
-
----
-
-Ready to seed! 🌱
+- [Factories](https://ack-solutions.github.io/nest-seeder/guide/factories)
+- [Seeders](https://ack-solutions.github.io/nest-seeder/guide/seeders)
+- [CLI reference](https://ack-solutions.github.io/nest-seeder/guide/cli)
+- [Migration v1 → v2](https://ack-solutions.github.io/nest-seeder/migration)
